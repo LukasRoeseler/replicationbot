@@ -2,35 +2,31 @@ name: Daily Replication Bluesky Bot
 
 on:
   schedule:
-    # Jeden Tag um 12:00 Uhr UTC (ca. 13:00 / 14:00 Uhr deutscher Zeit)
     - cron: '0 12 * * *'
-  workflow_dispatch: # Erlaubt den manuellen Start über den "Run workflow" Button
+  workflow_dispatch:
 
 jobs:
   post-to-bluesky:
     runs-on: ubuntu-latest
     
     steps:
-      # 1. Läd den Code deines Repositories herunter
+      # Update auf v4 (Behebt die Node.js Warnung)
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         
-      # 2. Installiert R auf dem GitHub Server
+      # Update auf v3 und Nutzung von fertigen Paketen (Behebt den bskyr Fehler)
       - name: Setup R
-        uses: r-lib/actions/setup-r@v2
+        uses: r-lib/actions/setup-r@v3
         with:
           r-version: 'release'
+          use-public-rspm: true
           
-      # 3. System-Abhängigkeiten installieren (wird für bskyr/httr2 benötigt)
-      - name: Install System Dependencies
-        run: sudo apt-get install -y libcurl4-openssl-dev libssl-dev
-          
-      # 4. R-Pakete installieren
+      # Pakete installieren (geht jetzt rasend schnell und ohne Fehler)
       - name: Install R Packages
         run: |
-          Rscript -e "install.packages(c('jsonlite', 'bskyr'), repos = 'https://cloud.r-project.org')"
+          Rscript -e "install.packages(c('jsonlite', 'bskyr'))"
           
-      # 5. Führt dein R-Skript aus und übergibt die Passwörter sicher
+      # Dein Skript ausführen
       - name: Run Bot Script
         env:
           BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
