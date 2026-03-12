@@ -28,10 +28,18 @@ get_short_citation <- function(author_json, year) {
   return(paste0(name, " (", year, ")"))
 }
 
-# 2. Helper function: Prioritize link (DOI first, otherwise URL)
-get_link <- function(doi, url) {
+# 2. Helper function: Prioritize link (DOI first, then primary URL, then Open Access URL)
+get_link <- function(doi, primary_url, fallback_url = NA) {
+  # 1. Check if DOI exists
   if (!is.na(doi) && doi != "") return(paste0("https://doi.org/", doi))
-  if (!is.na(url) && url != "") return(url)
+  
+  # 2. Check primary URL (e.g., url_r)
+  if (!is.na(primary_url) && primary_url != "") return(primary_url)
+  
+  # 3. Check fallback URL (e.g., oa_url_r)
+  if (!is.na(fallback_url) && fallback_url != "") return(fallback_url)
+  
+  # 4. If everything is missing
   return("No link available")
 }
 
@@ -74,6 +82,29 @@ main <- function() {
   df <- read.csv("https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/output/flora.csv", stringsAsFactors = FALSE, na.strings = c("", "NA"))
   
   # ---------------------------------------------------------
+  # Filter out rows with missing authors ("Unknown")
+  # ---------------------------------------------------------
+  
+  # Create a logical mask checking if both citations are valid (don't start with "Unknown")
+  valid_mask <- mapply(function(author_o, year_o, author_r, year_r) {
+    cit_o <- get_short_citation(author_o, year_o)
+    cit_r <- get_short_citation(author_r, year_r)
+    
+    is_valid_o <- !startsWith(cit_o, "Unknown (")
+    is_valid_r <- !startsWith(cit_r, "Unknown (")
+    
+    return(is_valid_o && is_valid_r)
+  }, df$author_o, df$year_o, df$author_r, df$year_r)
+  
+  # Keep only valid rows
+  df <- df[valid_mask, ]
+  
+  # Stop if no rows are left (just a safety net)
+  if (nrow(df) == 0) {
+    stop("Error: No valid rows left after filtering missing authors.")
+  }
+  
+  # ---------------------------------------------------------
   # Select today's row (random but consistent across years)
   # ---------------------------------------------------------
   
@@ -101,8 +132,9 @@ main <- function() {
   orig_cit <- get_short_citation(row$author_o, row$year_o)
   repl_cit <- get_short_citation(row$author_r, row$year_r)
   
-  orig_link <- get_link(row$doi_o, row$oa_url_o)
-  repl_link <- get_link(row$doi_r, row$url_r)
+  # Advanced link generation (DOI -> URL -> OA URL)
+  orig_link <- get_link(row$doi_o, row$oa_url_o, NA)
+  repl_link <- get_link(row$doi_r, row$url_r, row$oa_url_r)
   
   # Determine study type and verbs
   study_type <- ifelse(!is.na(row$type), tolower(row$type), "unknown")
