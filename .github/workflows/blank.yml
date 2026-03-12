@@ -1,0 +1,38 @@
+name: Daily Replication Bluesky Bot
+
+on:
+  schedule:
+    # Jeden Tag um 12:00 Uhr UTC (ca. 13:00 / 14:00 Uhr deutscher Zeit)
+    - cron: '0 12 * * *'
+  workflow_dispatch: # Erlaubt den manuellen Start über den "Run workflow" Button
+
+jobs:
+  post-to-bluesky:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Läd den Code deines Repositories herunter
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        
+      # 2. Installiert R auf dem GitHub Server
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          
+      # 3. System-Abhängigkeiten installieren (wird für bskyr/httr2 benötigt)
+      - name: Install System Dependencies
+        run: sudo apt-get install -y libcurl4-openssl-dev libssl-dev
+          
+      # 4. R-Pakete installieren
+      - name: Install R Packages
+        run: |
+          Rscript -e "install.packages(c('jsonlite', 'bskyr'), repos = 'https://cloud.r-project.org')"
+          
+      # 5. Führt dein R-Skript aus und übergibt die Passwörter sicher
+      - name: Run Bot Script
+        env:
+          BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+          BLUESKY_PASSWORD: ${{ secrets.BLUESKY_PASSWORD }}
+        run: Rscript bot.R
