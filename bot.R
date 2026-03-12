@@ -1,4 +1,7 @@
 # Benötigte Pakete laden
+install.packages("bskyr")
+install.packages("jsonlite")
+
 library(bskyr)
 library(jsonlite)
 
