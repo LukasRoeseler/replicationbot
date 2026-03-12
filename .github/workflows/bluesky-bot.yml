@@ -10,23 +10,23 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # Update auf v4 (Behebt die Node.js Warnung)
       - name: Checkout Repository
         uses: actions/checkout@v4
         
-      # Update auf v3 und Nutzung von fertigen Paketen (Behebt den bskyr Fehler)
       - name: Setup R
-        uses: r-lib/actions/setup-r@v3
+        uses: r-lib/actions/setup-r@v2
         with:
           r-version: 'release'
           use-public-rspm: true
           
-      # Pakete installieren (geht jetzt rasend schnell und ohne Fehler)
-      - name: Install R Packages
-        run: |
-          Rscript -e "install.packages(c('jsonlite', 'bskyr'))"
-          
-      # Dein Skript ausführen
+      # Das ist der Gamechanger: Installiert R-Pakete UND Linux-Abhängigkeiten
+      - name: Install Packages
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::bskyr
+            any::jsonlite
+            
       - name: Run Bot Script
         env:
           BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
