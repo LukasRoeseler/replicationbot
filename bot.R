@@ -1,10 +1,11 @@
 library(bskyr)
 library(jsonlite)
 
-# 1. Hilfsfunktion: JSON-Autoren in eine Kurzzitation umwandeln (z.B. "Name et al. (Jahr)")
+# 1. Helper function: Convert JSON authors to a short citation (e.g., "Name et al. (Year)")
 get_short_citation <- function(author_json, year) {
   if (is.na(author_json) || author_json == "") return(paste0("Unknown (", year, ")"))
   
+  # Catch errors in case the JSON is not formatted perfectly
   authors <- tryCatch({
     jsonlite::fromJSON(author_json)
   }, error = function(e) return(NULL))
@@ -27,19 +28,19 @@ get_short_citation <- function(author_json, year) {
   return(paste0(name, " (", year, ")"))
 }
 
-# 2. Hilfsfunktion: Link priorisieren (DOI zuerst, wenn nicht vorhanden URL)
+# 2. Helper function: Prioritize link (DOI first, otherwise URL)
 get_link <- function(doi, url) {
   if (!is.na(doi) && doi != "") return(paste0("https://doi.org/", doi))
   if (!is.na(url) && url != "") return(url)
   return("No link available")
 }
 
-# 3. Hilfsfunktion: Rohe Reproduktions-Outcomes in schöne Sätze verwandeln
+# 3. Helper function: Convert raw reproduction outcomes into readable sentences
 format_reproduction_outcome <- function(outcome) {
-  # Tippfehler in der Original-CSV abfangen ("computionally" -> "computationally")
+  # Fix typo in the original FReD dataset ("computionally" -> "computationally")
   outcome <- gsub("computionally", "computationally", outcome)
   
-  # Wörterbuch für die genauen Sätze
+  # Dictionary mapping raw outcomes to full sentences
   mapping <- c(
     "computationally successful, robust" = "the reproduction was computationally successful and robust",
     "computationally successful, robustness challenges" = "the reproduction was computationally successful, but had robustness challenges",
@@ -55,43 +56,60 @@ format_reproduction_outcome <- function(outcome) {
   if (outcome %in% names(mapping)) {
     return(mapping[[outcome]])
   } else {
-    return(paste("the outcome was:", outcome)) # Fallback, falls ein neuer Typ in der Datenbank auftaucht
+    return(paste("the outcome was:", outcome)) # Fallback for unknown categories
   }
 }
 
-# 4. Hauptprozess
+# 4. Main process
 main <- function() {
-  # Zugangsdaten aus den GitHub Secrets laden
+  # Load credentials from GitHub Secrets
   bsky_handle <- Sys.getenv("BLUESKY_HANDLE")
   bsky_password <- Sys.getenv("BLUESKY_PASSWORD")
   
-  # Authentifizierung bei Bluesky
+  # Authenticate with Bluesky
   set_bluesky_user(bsky_handle)
   set_bluesky_pass(bsky_password)
   
-  # Datensatz laden (Live von GitHub)
+  # Load the dataset live from GitHub
   df <- read.csv("https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/output/flora.csv", stringsAsFactors = FALSE, na.strings = c("", "NA"))
   
-  # Tag des Jahres ermitteln (1 bis 365/366)
-  day_of_year <- as.numeric(format(Sys.Date(), "%j"))
+  # ---------------------------------------------------------
+  # Select today's row (random but consistent across years)
+  # ---------------------------------------------------------
   
-  # Zeile auswählen
-  row_index <- (day_of_year %% nrow(df)) + 1
+  # Set the bot's start date (IMPORTANT: Change this to today's date, e.g., "2024-05-23")
+  bot_start_date <- as.Date("2024-05-23") 
+  
+  # Calculate how many days the bot has been running (max(0) prevents errors before start date)
+  days_running <- max(0, as.numeric(Sys.Date() - bot_start_date))
+  
+  # Fixed seed: The dataset is always shuffled exactly the same way
+  set.seed(42) 
+  shuffled_indices <- sample(1:nrow(df))
+  
+  # Calculate position in the shuffled list (modulo ensures it loops back if days > rows)
+  list_position <- (days_running %% nrow(df)) + 1
+  
+  # Select the row
+  row_index <- shuffled_indices[list_position]
   row <- df[row_index, ]
   
-  # Daten extrahieren und formatieren
+  # ---------------------------------------------------------
+  # Extract and format data
+  # ---------------------------------------------------------
+  title_o <- ifelse(!is.na(row$title_o), row$title_o, "")
   orig_cit <- get_short_citation(row$author_o, row$year_o)
   repl_cit <- get_short_citation(row$author_r, row$year_r)
   
   orig_link <- get_link(row$doi_o, row$oa_url_o)
   repl_link <- get_link(row$doi_r, row$url_r)
   
-  # Typ bestimmen
+  # Determine study type and verbs
   study_type <- ifelse(!is.na(row$type), tolower(row$type), "unknown")
   action_verb <- ifelse(study_type == "reproduction", "reproduced", "replicated")
   link_label <- ifelse(study_type == "reproduction", "Reproduction", "Replication")
   
-  # Outcome bestimmen und den mittleren Satz zusammenbauen
+  # Determine the outcome and construct the middle sentence
   raw_outcome <- ifelse(!is.na(row$outcome), tolower(row$outcome), "unknown")
   
   if (study_type == "reproduction") {
@@ -100,20 +118,53 @@ main <- function() {
     middle_sentence <- sprintf("According to the replication authors, the replication attempt was %s.", raw_outcome)
   }
   
-  # Post-Text zusammenbauen
-  post_text <- sprintf(
+  # ---------------------------------------------------------
+  # Build post text & check character limit (max 300)
+  # ---------------------------------------------------------
+  
+  # 1. Generate text WITHOUT the title to measure its length
+  base_text <- sprintf(
     "%s was %s by %s. %s\n\nOriginal: %s\n%s: %s",
     orig_cit, action_verb, repl_cit, middle_sentence, orig_link, link_label, repl_link
   )
   
-  # In der Konsole ausgeben (hilfreich für die GitHub Actions Logs)
-  cat("Versuche folgenden Text zu posten:\n", post_text, "\n\n")
+  # 2. Calculate remaining space for the title
+  # We subtract 6 characters as a buffer and for the punctuation: `, ""`
+  available_space <- 300 - nchar(base_text, type = "chars") - 6
   
-  # Auf Bluesky posten
+  # 3. Insert the title (or truncate it) if there is enough space (> 10 characters)
+  if (title_o != "" && available_space > 10) {
+    if (nchar(title_o, type = "chars") > available_space) {
+      # Title is too long: truncate and append "..."
+      short_title <- paste0(substr(title_o, 1, available_space - 3), "...")
+      title_insert <- sprintf(", \"%s\"", short_title)
+    } else {
+      # Title fits completely
+      title_insert <- sprintf(", \"%s\"", title_o)
+    }
+    
+    # Generate the final text WITH the title
+    post_text <- sprintf(
+      "%s%s was %s by %s. %s\n\nOriginal: %s\n%s: %s",
+      orig_cit, title_insert, action_verb, repl_cit, middle_sentence, orig_link, link_label, repl_link
+    )
+  } else {
+    # Not enough space for the title, fallback to the base version
+    post_text <- base_text
+  }
+  
+  # ---------------------------------------------------------
+  # Send post to Bluesky
+  # ---------------------------------------------------------
+  
+  # Print to console (helpful for debugging in GitHub Actions logs)
+  cat("Attempting to post the following text (Day", days_running, "- Row", row_index, "):\n", post_text, "\n", "Length:", nchar(post_text), "characters\n\n")
+  
+  # Send the post
   bs_post(text = post_text)
   
-  cat("Erfolgreich gepostet!\n")
+  cat("Successfully posted!\n")
 }
 
-# Skript ausführen
+# Execute the script
 main()
