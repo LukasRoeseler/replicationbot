@@ -1,11 +1,10 @@
 library(bskyr)
 library(jsonlite)
 
-# 1. Helper function: Convert JSON authors to a short citation (e.g., "Name et al. (Year)")
+# 1. Helper function: Convert JSON authors to a short citation
 get_short_citation <- function(author_json, year) {
   if (is.na(author_json) || author_json == "") return(paste0("Unknown (", year, ")"))
   
-  # Catch errors in case the JSON is not formatted perfectly
   authors <- tryCatch({
     jsonlite::fromJSON(author_json)
   }, error = function(e) return(NULL))
@@ -15,6 +14,12 @@ get_short_citation <- function(author_json, year) {
   }
   
   families <- authors$family
+  
+  # NEU: Prüfen, ob der Nachname leer / NA ist
+  if (length(families) == 0 || is.na(families[1])) {
+    return(paste0("Unknown (", year, ")"))
+  }
+  
   n <- length(families)
   
   if (n == 1) {
@@ -28,25 +33,17 @@ get_short_citation <- function(author_json, year) {
   return(paste0(name, " (", year, ")"))
 }
 
-# 2. Helper function: Prioritize link (DOI first, then primary URL, then Open Access URL)
+# 2. Helper function: Prioritize link
 get_link <- function(doi, primary_url, fallback_url = NA) {
-  # 1. Check if DOI exists
   if (!is.na(doi) && doi != "") return(paste0("https://doi.org/", doi))
-  
-  # 2. Check primary URL (e.g., url_r)
   if (!is.na(primary_url) && primary_url != "") return(primary_url)
-  
-  # 3. Check fallback URL (e.g., oa_url_r)
   if (!is.na(fallback_url) && fallback_url != "") return(fallback_url)
-  
-  # 4. If everything is missing
   return("No link available")
 }
 
-# 3. Helper function: Convert raw reproduction outcomes into readable sentences
+# 3. Helper function: Repro
 format_reproduction_outcome <- function(outcome) {
   outcome <- gsub("computionally", "computationally", outcome)
-  
   mapping <- c(
     "computationally successful, robust" = "the reproduction was computationally successful and robust",
     "computationally successful, robustness challenges" = "the reproduction was computationally successful, but had robustness challenges",
@@ -58,7 +55,6 @@ format_reproduction_outcome <- function(outcome) {
     "computation not checked, robustness challenges" = "computational reproducibility was not checked and there were robustness challenges",
     "computation not checked, robustness not checked" = "neither computational reproducibility nor robustness were checked"
   )
-  
   if (outcome %in% names(mapping)) {
     return(mapping[[outcome]])
   } else {
@@ -66,17 +62,16 @@ format_reproduction_outcome <- function(outcome) {
   }
 }
 
-# 4. Helper function: Convert raw replication outcomes into grammatically correct sentences
+# 4. Helper function: Replications
 format_replication_outcome <- function(outcome) {
   mapping <- c(
     "successful" = "the replication attempt was successful",
     "failed" = "the replication attempt failed",
     "mixed" = "the replication attempt yielded mixed results",
     "uninformative" = "the replication attempt was uninformative",
-    "descriptive only" = "the replication attempt was descriptive only",
+    "descriptive only" = "there was no success or failure but the replication was uninformative",
     "statistically successful but flawed" = "the replication attempt was statistically successful but flawed"
   )
-  
   if (outcome %in% names(mapping)) {
     return(mapping[[outcome]])
   } else {
@@ -86,27 +81,20 @@ format_replication_outcome <- function(outcome) {
 
 # 5. Main process
 main <- function() {
-  # Load credentials from GitHub Secrets
   bsky_handle <- Sys.getenv("BLUESKY_HANDLE")
   bsky_password <- Sys.getenv("BLUESKY_PASSWORD")
   
-  # Authenticate with Bluesky
   set_bluesky_user(bsky_handle)
   set_bluesky_pass(bsky_password)
   
-  # Load the dataset live from GitHub
   df <- read.csv("https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/output/flora.csv", stringsAsFactors = FALSE, na.strings = c("", "NA"))
   
-  # ---------------------------------------------------------
-  # Filter out rows with missing authors ("Unknown")
-  # ---------------------------------------------------------
+  # Filter missing authors
   valid_mask <- mapply(function(author_o, year_o, author_r, year_r) {
     cit_o <- get_short_citation(author_o, year_o)
     cit_r <- get_short_citation(author_r, year_r)
-    
     is_valid_o <- !startsWith(cit_o, "Unknown (")
     is_valid_r <- !startsWith(cit_r, "Unknown (")
-    
     return(is_valid_o && is_valid_r)
   }, df$author_o, df$year_o, df$author_r, df$year_r)
   
@@ -116,9 +104,7 @@ main <- function() {
     stop("Error: No valid rows left after filtering missing authors.")
   }
   
-  # ---------------------------------------------------------
-  # Select today's row (random but consistent across years)
-  # ---------------------------------------------------------
+  # Row selection
   bot_start_date <- as.Date("2024-05-23") 
   days_running <- max(0, as.numeric(Sys.Date() - bot_start_date))
   
@@ -128,9 +114,7 @@ main <- function() {
   row_index <- shuffled_indices[list_position]
   row <- df[row_index, ]
   
-  # ---------------------------------------------------------
-  # Extract and format data
-  # ---------------------------------------------------------
+  # Extract data
   title_o <- ifelse(!is.na(row$title_o), row$title_o, "")
   orig_cit <- get_short_citation(row$author_o, row$year_o)
   repl_cit <- get_short_citation(row$author_r, row$year_r)
@@ -141,25 +125,22 @@ main <- function() {
   study_type <- ifelse(!is.na(row$type), tolower(row$type), "unknown")
   action_verb <- ifelse(study_type == "reproduction", "reproduced", "replicated")
   link_label <- ifelse(study_type == "reproduction", "Reproduction", "Replication")
-  
   raw_outcome <- ifelse(!is.na(row$outcome), tolower(row$outcome), "unknown")
   
-  # Apply the correct grammar mapping based on the study type
   if (study_type == "reproduction") {
     middle_sentence <- sprintf("According to the reproduction authors, %s.", format_reproduction_outcome(raw_outcome))
   } else {
     middle_sentence <- sprintf("According to the replication authors, %s.", format_replication_outcome(raw_outcome))
   }
   
-  # ---------------------------------------------------------
-  # Build post text & check character limit (max 300)
-  # ---------------------------------------------------------
+  # Text building
   base_text <- sprintf(
     "%s was %s by %s. %s\n\nOriginal: %s\n%s: %s",
     orig_cit, action_verb, repl_cit, middle_sentence, orig_link, link_label, repl_link
   )
   
-  available_space <- 300 - nchar(base_text, type = "chars") - 6
+  # NEU: Sicherheitspuffer von 6 auf 18 Zeichen erhöht, um Blueskys Byte-Limit niemals zu verletzen!
+  available_space <- 300 - nchar(base_text, type = "chars") - 18
   
   if (title_o != "" && available_space > 10) {
     if (nchar(title_o, type = "chars") > available_space) {
@@ -177,9 +158,7 @@ main <- function() {
     post_text <- base_text
   }
   
-  # ---------------------------------------------------------
-  # Send post to Bluesky
-  # ---------------------------------------------------------
+  # Post
   cat("Attempting to post the following text (Day", days_running, "- Row", row_index, "):\n", post_text, "\n", "Length:", nchar(post_text), "characters\n\n")
   
   bs_post(text = post_text)
