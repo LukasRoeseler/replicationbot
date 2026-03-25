@@ -32,11 +32,17 @@ get_short_citation <- function(author_json, year) {
   return(paste0(name, " (", year, ")"))
 }
 
-# 2. Helper function: Prioritize link
+# 2. Helper function: Prioritize link AND strip https:// to bypass the bskyr embed bug!
 get_link <- function(doi, primary_url, fallback_url = NA) {
-  if (!is.na(doi) && doi != "") return(paste0("https://doi.org/", doi))
-  if (!is.na(primary_url) && primary_url != "") return(primary_url)
-  if (!is.na(fallback_url) && fallback_url != "") return(fallback_url)
+  if (!is.na(doi) && doi != "") {
+    return(paste0("doi.org/", doi))
+  }
+  if (!is.na(primary_url) && primary_url != "") {
+    return(gsub("^https?://", "", primary_url))
+  }
+  if (!is.na(fallback_url) && fallback_url != "") {
+    return(gsub("^https?://", "", fallback_url))
+  }
   return("No link available")
 }
 
@@ -130,13 +136,13 @@ main <- function() {
     middle_sentence <- sprintf("According to the replication authors, %s.", format_replication_outcome(raw_outcome))
   }
   
-  # Text building - HINWEIS: Leerzeichen nach %s eingefügt, um Facet-Parsing-Fehler zu vermeiden!
+  # Text building
   base_text <- sprintf(
     "%s was %s by %s. %s\n\nOriginal: %s \n%s: %s ",
     orig_cit, action_verb, repl_cit, middle_sentence, orig_link, link_label, repl_link
   )
   
-  # Limit auf 280 heruntergesetzt für absolute Sicherheit
+  # Limit check
   available_space <- 280 - nchar(base_text, type = "chars")
   
   if (title_o != "" && available_space > 10) {
@@ -157,15 +163,12 @@ main <- function() {
   
   cat("Attempting to post the following text (Day", days_running, "- Row", row_index, "):\n", post_text, "\n", "Length:", nchar(post_text), "characters\n\n")
   
-  # --- Fehler abfangen und exakten Bluesky Server-Error auslesen ---
   tryCatch({
     bs_post(text = post_text)
     cat("Successfully posted!\n")
   }, error = function(e) {
     cat("!!! POSTING FAILED !!!\n")
     cat("R Error:", e$message, "\n\n")
-    
-    # Letzte API-Antwort auslesen
     resp <- httr2::last_response()
     if (!is.null(resp)) {
       cat("--- SECRET BLUESKY API ERROR DETAILS ---\n")
