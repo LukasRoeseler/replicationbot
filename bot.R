@@ -15,7 +15,6 @@ get_short_citation <- function(author_json, year) {
   
   families <- authors$family
   
-  # NEU: Prüfen, ob der Nachname leer / NA ist
   if (length(families) == 0 || is.na(families[1])) {
     return(paste0("Unknown (", year, ")"))
   }
@@ -100,9 +99,7 @@ main <- function() {
   
   df <- df[valid_mask, ]
   
-  if (nrow(df) == 0) {
-    stop("Error: No valid rows left after filtering missing authors.")
-  }
+  if (nrow(df) == 0) stop("Error: No valid rows left after filtering missing authors.")
   
   # Row selection
   bot_start_date <- as.Date("2024-05-23") 
@@ -133,14 +130,14 @@ main <- function() {
     middle_sentence <- sprintf("According to the replication authors, %s.", format_replication_outcome(raw_outcome))
   }
   
-  # Text building
+  # Text building - HINWEIS: Leerzeichen nach %s eingefügt, um Facet-Parsing-Fehler zu vermeiden!
   base_text <- sprintf(
-    "%s was %s by %s. %s\n\nOriginal: %s\n%s: %s",
+    "%s was %s by %s. %s\n\nOriginal: %s \n%s: %s ",
     orig_cit, action_verb, repl_cit, middle_sentence, orig_link, link_label, repl_link
   )
   
-  # NEU: Sicherheitspuffer von 6 auf 18 Zeichen erhöht, um Blueskys Byte-Limit niemals zu verletzen!
-  available_space <- 300 - nchar(base_text, type = "chars") - 18
+  # Limit auf 280 heruntergesetzt für absolute Sicherheit
+  available_space <- 280 - nchar(base_text, type = "chars")
   
   if (title_o != "" && available_space > 10) {
     if (nchar(title_o, type = "chars") > available_space) {
@@ -151,19 +148,31 @@ main <- function() {
     }
     
     post_text <- sprintf(
-      "%s%s was %s by %s. %s\n\nOriginal: %s\n%s: %s",
+      "%s%s was %s by %s. %s\n\nOriginal: %s \n%s: %s ",
       orig_cit, title_insert, action_verb, repl_cit, middle_sentence, orig_link, link_label, repl_link
     )
   } else {
     post_text <- base_text
   }
   
-  # Post
   cat("Attempting to post the following text (Day", days_running, "- Row", row_index, "):\n", post_text, "\n", "Length:", nchar(post_text), "characters\n\n")
   
-  bs_post(text = post_text)
-  
-  cat("Successfully posted!\n")
+  # --- Fehler abfangen und exakten Bluesky Server-Error auslesen ---
+  tryCatch({
+    bs_post(text = post_text)
+    cat("Successfully posted!\n")
+  }, error = function(e) {
+    cat("!!! POSTING FAILED !!!\n")
+    cat("R Error:", e$message, "\n\n")
+    
+    # Letzte API-Antwort auslesen
+    resp <- httr2::last_response()
+    if (!is.null(resp)) {
+      cat("--- SECRET BLUESKY API ERROR DETAILS ---\n")
+      cat(httr2::resp_body_string(resp), "\n")
+    }
+    quit(save = "no", status = 1)
+  })
 }
 
 main()
