@@ -1,6 +1,6 @@
 # Replication Bot
 
-Bot that posts daily on Bluesky about a replication attempt and its outcome. This was created using Gemini-3.1-pro-preview. The logo was created using ChatGPT 4.1 with a Gemini-prompt. The data used is the FORRT Library of Reproduction and Replication Attempts (CC-BY license). See here for up to date recommended citation: <https://github.com/forrtproject/FReD-data/blob/main/output/citation.txt>
+Bot that posts daily on Bluesky about a replication attempt and its outcome. This was created using Gemini-3.1-pro-preview and Claude Sonnet 5. The logo was created using ChatGPT 4.1 with a Gemini-prompt. The data used is the FORRT Library of Reproduction and Replication Attempts (CC-BY license). See here for up to date recommended citation: <https://github.com/forrtproject/FReD-data/blob/main/output/citation.txt>
 
 Account: <https://bsky.app/profile/replicationbot.bsky.social>
 
