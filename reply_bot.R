@@ -194,8 +194,12 @@ main <- function() {
       next
     }
 
+    # embed = FALSE: without this, bs_post() tries to auto-generate a link
+    # preview card for the FLoRA Atlas URL in reply_text, which is the same
+    # bskyr embed bug bot.R's get_link() already works around — it caused
+    # every reply attempt to fail with an HTTP 400.
     result <- tryCatch({
-      bs_post(text = reply_text, reply = post_uri)
+      bs_post(text = reply_text, reply = post_uri, embed = FALSE)
       TRUE
     }, error = function(e) {
       cat("Warning: failed to reply to", post_uri, "-", conditionMessage(e), "\n")

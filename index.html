@@ -136,26 +136,65 @@
     padding: 0;
   }
   ul.activity li {
-    padding: 0.85rem 0;
+    padding: 0.9rem 0;
     border-top: 1px solid var(--border);
   }
   ul.activity li:first-child { border-top: none; }
-  .activity .doi {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  .thread-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.6rem;
     font-size: 0.85rem;
+  }
+  .thread-meta .doi {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.82rem;
     background: var(--code-bg);
     padding: 0.1rem 0.4rem;
     border-radius: 6px;
   }
-  .activity .when {
-    color: var(--muted);
+  .thread-meta .when { color: var(--muted); }
+
+  .thread {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .post {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.7rem 0.9rem;
+  }
+  .post.level-1 { margin-left: 1.25rem; }
+  .post.level-2 { margin-left: 2.5rem; }
+  .post-role {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--accent);
+    margin-bottom: 0.2rem;
+  }
+  .post-author { font-weight: 600; font-size: 0.9rem; }
+  .post-author .handle { font-weight: 400; color: var(--muted); }
+  .post-text {
+    margin-top: 0.25rem;
+    white-space: pre-wrap;
+    font-size: 0.92rem;
+  }
+  .post-link {
+    display: inline-block;
+    margin-top: 0.4rem;
     font-size: 0.82rem;
   }
-  .activity .links {
-    margin-top: 0.3rem;
-    font-size: 0.9rem;
-    display: flex;
-    gap: 1rem;
+  .thread-error {
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-style: italic;
+    margin: 0;
   }
 
   .empty, .error {
@@ -178,7 +217,7 @@
   <div class="hero">
     <img src="logo.png" alt="Replication Bot logo">
     <div>
-      <h1>Hi, I'm Replication Bot 🤖</h1>
+      <h1>Hi, I'm Replication Bot</h1>
       <p class="tagline">I share replication attempts from the FORRT FLoRA dataset, and reply on Bluesky when I spot a study that already has one.</p>
     </div>
   </div>
@@ -221,7 +260,7 @@
   <footer>
     <p>Data source: FORRT Library of Replication Attempts (FLoRA), CC-BY license. See the
       <a href="https://github.com/forrtproject/FReD-data/blob/main/output/citation.txt" target="_blank" rel="noopener">recommended citation</a>.</p>
-    <p>This page reads directly from <code>replied_posts.csv</code> in this repository and updates whenever that file changes.</p>
+    <p>This page reads directly from <code>replied_posts.csv</code> in this repository, then loads each conversation live from Bluesky's public API.</p>
   </footer>
 
 </main>
@@ -229,6 +268,7 @@
 <script>
 (function () {
   const ACTIVITY_SINCE = new Date("2026-07-15T00:00:00Z");
+  const BOT_HANDLE = "replicationbot.bsky.social";
   const container = document.getElementById("activity-container");
   const statTotal = document.getElementById("stat-total");
   const statLatest = document.getElementById("stat-latest");
@@ -265,6 +305,12 @@
     return out;
   }
 
+  function escapeHtml(s) {
+    return (s || "").replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
   function atUriToBskyUrl(uri) {
     const m = /^at:\/\/([^/]+)\/app\.bsky\.feed\.post\/([^/]+)$/.exec(uri || "");
     if (!m) return null;
@@ -283,6 +329,74 @@
     });
   }
 
+  function renderPostBlock(view, roleLabel, level) {
+    if (!view || !view.author) return "";
+    const handle = view.author.handle || "unknown";
+    const name = view.author.displayName || handle;
+    const text = view.record && view.record.text ? view.record.text : "";
+    const url = atUriToBskyUrl(view.uri);
+    return (
+      '<div class="post level-' + level + '">' +
+        '<div class="post-role">' + escapeHtml(roleLabel) + '</div>' +
+        '<div class="post-author">' + escapeHtml(name) + ' <span class="handle">@' + escapeHtml(handle) + '</span></div>' +
+        '<div class="post-text">' + escapeHtml(text) + '</div>' +
+        (url ? '<a class="post-link" href="' + url + '" target="_blank" rel="noopener">View on Bluesky</a>' : '') +
+      '</div>'
+    );
+  }
+
+  function findBotReply(thread) {
+    const replies = (thread && thread.replies) || [];
+    for (let i = 0; i < replies.length; i++) {
+      const r = replies[i];
+      if (r && r.post && r.post.author && r.post.author.handle === BOT_HANDLE) return r;
+    }
+    return null;
+  }
+
+  function fetchThread(postUri) {
+    const url = "https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=" +
+      encodeURIComponent(postUri) + "&depth=2";
+    return fetch(url).then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    }).then(function (data) { return data.thread; });
+  }
+
+  function renderThreadEntry(row) {
+    const rootUrl = atUriToBskyUrl(row.post_uri);
+    const doiHtml = row.doi ? '<span class="doi">' + escapeHtml(row.doi) + "</span>" : "";
+    const metaHtml =
+      '<div class="thread-meta">' +
+        (doiHtml ? "<span>Study " + doiHtml + "</span>" : "") +
+        '<span class="when">' + formatWhen(row.replied_at) + "</span>" +
+        (rootUrl ? '<a href="' + rootUrl + '" target="_blank" rel="noopener">Open conversation on Bluesky &rarr;</a>' : "") +
+      "</div>";
+
+    return fetchThread(row.post_uri).then(function (thread) {
+      if (!thread || !thread.post) {
+        return "<li>" + metaHtml + '<p class="thread-error">Original post is no longer available.</p></li>';
+      }
+
+      const parts = [renderPostBlock(thread.post, "Original post", 0)];
+      const botReplyNode = findBotReply(thread);
+
+      if (botReplyNode) {
+        parts.push(renderPostBlock(botReplyNode.post, "Replication Bot replied", 1));
+        const subReplies = botReplyNode.replies || [];
+        subReplies.forEach(function (sr) {
+          if (sr && sr.post) parts.push(renderPostBlock(sr.post, "Reply to the bot", 2));
+        });
+      } else {
+        parts.push('<p class="thread-error">Could not find the bot’s reply in this thread (it may have been removed).</p>');
+      }
+
+      return "<li>" + metaHtml + '<div class="thread">' + parts.join("") + "</div></li>";
+    }).catch(function (err) {
+      return "<li>" + metaHtml + '<p class="thread-error">Could not load this conversation (' + escapeHtml(err.message) + ').</p></li>';
+    });
+  }
+
   function render(rows) {
     const filtered = rows
       .filter(function (r) { return r.post_uri && r.replied_at; })
@@ -297,24 +411,10 @@
       return;
     }
 
-    const ul = document.createElement("ul");
-    ul.className = "activity";
-    filtered.forEach(function (r) {
-      const li = document.createElement("li");
-      const postUrl = atUriToBskyUrl(r.post_uri);
-      const doiHtml = r.doi ? '<span class="doi">' + r.doi + "</span>" : "";
-      const links = [];
-      if (postUrl) links.push('<a href="' + postUrl + '" target="_blank" rel="noopener">View original post</a>');
-      if (r.doi) links.push('<a href="' + floraUrl(r.doi) + '" target="_blank" rel="noopener">FLoRA Atlas entry</a>');
-
-      li.innerHTML =
-        '<div>Replied about study ' + doiHtml + '</div>' +
-        '<div class="when">' + formatWhen(r.replied_at) + '</div>' +
-        '<div class="links">' + links.join(" · ") + '</div>';
-      ul.appendChild(li);
+    container.innerHTML = '<p class="empty">Loading conversations…</p>';
+    Promise.all(filtered.map(renderThreadEntry)).then(function (items) {
+      container.innerHTML = '<ul class="activity">' + items.join("") + "</ul>";
     });
-    container.innerHTML = "";
-    container.appendChild(ul);
   }
 
   fetch("replied_posts.csv", { cache: "no-store" })
