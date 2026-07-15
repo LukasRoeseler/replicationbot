@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Replication Bot</title>
+<meta name="description" content="A Bluesky bot that shares replication attempts from the FORRT FLoRA dataset and replies when someone posts about a study that has a known replication.">
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --fg: #1c1c1c;
+    --muted: #5b5b5b;
+    --card-bg: #ffffff;
+    --border: #e2e2df;
+    --accent: #2f6f4f;
+    --accent-contrast: #ffffff;
+    --link: #1a5fb4;
+    --code-bg: #f0f0ee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171a;
+      --fg: #e9e9e7;
+      --muted: #a3a3a0;
+      --card-bg: #202126;
+      --border: #33343a;
+      --accent: #6fbf8f;
+      --accent-contrast: #0d1410;
+      --link: #7db1e8;
+      --code-bg: #26272c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16171a; --fg: #e9e9e7; --muted: #a3a3a0; --card-bg: #202126;
+    --border: #33343a; --accent: #6fbf8f; --accent-contrast: #0d1410;
+    --link: #7db1e8; --code-bg: #26272c;
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f7f5; --fg: #1c1c1c; --muted: #5b5b5b; --card-bg: #ffffff;
+    --border: #e2e2df; --accent: #2f6f4f; --accent-contrast: #ffffff;
+    --link: #1a5fb4; --code-bg: #f0f0ee;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+  }
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2.5rem 1.25rem 4rem;
+  }
+  a { color: var(--link); }
+
+  .hero {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    margin-bottom: 1.75rem;
+  }
+  .hero img {
+    width: 84px;
+    height: 84px;
+    border-radius: 20px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .hero h1 {
+    margin: 0 0 0.15rem;
+    font-size: 1.6rem;
+  }
+  .hero p.tagline {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .badges { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    font-size: 0.82rem;
+    text-decoration: none;
+    color: var(--fg);
+  }
+
+  h2 {
+    font-size: 1.15rem;
+    margin: 0 0 0.75rem;
+  }
+
+  .stat-row {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+  .stat {
+    flex: 1 1 140px;
+  }
+  .stat .n {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .stat .l {
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  ul.activity {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  ul.activity li {
+    padding: 0.85rem 0;
+    border-top: 1px solid var(--border);
+  }
+  ul.activity li:first-child { border-top: none; }
+  .activity .doi {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    background: var(--code-bg);
+    padding: 0.1rem 0.4rem;
+    border-radius: 6px;
+  }
+  .activity .when {
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+  .activity .links {
+    margin-top: 0.3rem;
+    font-size: 0.9rem;
+    display: flex;
+    gap: 1rem;
+  }
+
+  .empty, .error {
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .error { color: #c0392b; }
+
+  footer {
+    margin-top: 2.5rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  footer p { margin: 0.3rem 0; }
+</style>
+</head>
+<body>
+<main>
+
+  <div class="hero">
+    <img src="logo.png" alt="Replication Bot logo">
+    <div>
+      <h1>Hi, I'm Replication Bot 🤖</h1>
+      <p class="tagline">I share replication attempts from the FORRT FLoRA dataset, and reply on Bluesky when I spot a study that already has one.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p>
+      Every day, I post about a randomly selected replication (or reproduction) attempt from the
+      <a href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener">FORRT Library of Replication Attempts (FLoRA)</a>,
+      including its outcome and links to the original and replication studies.
+    </p>
+    <p>
+      I also keep an eye on Bluesky for posts that link to a study (via a doi.org link) that already has a known
+      replication in the dataset. When I find one, I reply with a pointer to the corresponding FLoRA Atlas entry,
+      so more people can discover it.
+    </p>
+    <div class="badges">
+      <a class="badge" href="https://bsky.app/profile/replicationbot.bsky.social" target="_blank" rel="noopener">🦋 @replicationbot.bsky.social</a>
+      <a class="badge" href="https://github.com/LukasRoeseler/replicationbot" target="_blank" rel="noopener">💻 Source code</a>
+      <a class="badge" href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener">📚 FLoRA Atlas</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>My activity</h2>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="n" id="stat-total">–</div>
+        <div class="l">Replies since Jul 15, 2026</div>
+      </div>
+      <div class="stat">
+        <div class="n" id="stat-latest">–</div>
+        <div class="l">Most recent reply</div>
+      </div>
+    </div>
+    <div id="activity-container">
+      <p class="empty">Loading activity log…</p>
+    </div>
+  </div>
+
+  <footer>
+    <p>Data source: FORRT Library of Replication Attempts (FLoRA), CC-BY license. See the
+      <a href="https://github.com/forrtproject/FReD-data/blob/main/output/citation.txt" target="_blank" rel="noopener">recommended citation</a>.</p>
+    <p>This page reads directly from <code>replied_posts.csv</code> in this repository and updates whenever that file changes.</p>
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  const ACTIVITY_SINCE = new Date("2026-07-15T00:00:00Z");
+  const container = document.getElementById("activity-container");
+  const statTotal = document.getElementById("stat-total");
+  const statLatest = document.getElementById("stat-latest");
+
+  function parseCsv(text) {
+    const lines = text.split(/\r\n|\n|\r/).filter(function (l) { return l.trim().length > 0; });
+    if (lines.length === 0) return [];
+    const rows = lines.map(splitCsvLine);
+    const header = rows[0];
+    return rows.slice(1).map(function (row) {
+      const obj = {};
+      header.forEach(function (key, i) { obj[key.trim()] = (row[i] || "").trim(); });
+      return obj;
+    });
+  }
+
+  function splitCsvLine(line) {
+    const out = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (inQuotes) {
+        if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+        else if (c === '"') { inQuotes = false; }
+        else { cur += c; }
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ",") { out.push(cur); cur = ""; }
+        else cur += c;
+      }
+    }
+    out.push(cur);
+    return out;
+  }
+
+  function atUriToBskyUrl(uri) {
+    const m = /^at:\/\/([^/]+)\/app\.bsky\.feed\.post\/([^/]+)$/.exec(uri || "");
+    if (!m) return null;
+    return "https://bsky.app/profile/" + m[1] + "/post/" + m[2];
+  }
+
+  function floraUrl(doi) {
+    return "https://forrt.org/flora-replication-atlas/?dois=" + encodeURIComponent(doi);
+  }
+
+  function formatWhen(iso) {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, {
+      year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+    });
+  }
+
+  function render(rows) {
+    const filtered = rows
+      .filter(function (r) { return r.post_uri && r.replied_at; })
+      .filter(function (r) { const d = new Date(r.replied_at); return !isNaN(d.getTime()) && d >= ACTIVITY_SINCE; })
+      .sort(function (a, b) { return new Date(b.replied_at) - new Date(a.replied_at); });
+
+    statTotal.textContent = filtered.length;
+    statLatest.textContent = filtered.length > 0 ? formatWhen(filtered[0].replied_at) : "—";
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<p class="empty">No replies logged yet — check back soon!</p>';
+      return;
+    }
+
+    const ul = document.createElement("ul");
+    ul.className = "activity";
+    filtered.forEach(function (r) {
+      const li = document.createElement("li");
+      const postUrl = atUriToBskyUrl(r.post_uri);
+      const doiHtml = r.doi ? '<span class="doi">' + r.doi + "</span>" : "";
+      const links = [];
+      if (postUrl) links.push('<a href="' + postUrl + '" target="_blank" rel="noopener">View original post</a>');
+      if (r.doi) links.push('<a href="' + floraUrl(r.doi) + '" target="_blank" rel="noopener">FLoRA Atlas entry</a>');
+
+      li.innerHTML =
+        '<div>Replied about study ' + doiHtml + '</div>' +
+        '<div class="when">' + formatWhen(r.replied_at) + '</div>' +
+        '<div class="links">' + links.join(" · ") + '</div>';
+      ul.appendChild(li);
+    });
+    container.innerHTML = "";
+    container.appendChild(ul);
+  }
+
+  fetch("replied_posts.csv", { cache: "no-store" })
+    .then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.text();
+    })
+    .then(function (text) { render(parseCsv(text)); })
+    .catch(function (err) {
+      container.innerHTML = '<p class="error">Could not load activity log (' + err.message + ').</p>';
+    });
+})();
+</script>
+
+</body>
+</html>
