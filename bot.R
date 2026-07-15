@@ -7,39 +7,28 @@ source("helpers.R")
 
 # 5. Main process
 main <- function() {
-  # Load credentials from GitHub Secrets
   bsky_handle <- Sys.getenv("BLUESKY_HANDLE")
   bsky_password <- Sys.getenv("BLUESKY_PASSWORD")
   
-  # Authenticate with Bluesky
   set_bluesky_user(bsky_handle)
   set_bluesky_pass(bsky_password)
   
-  # Load the dataset live from GitHub
   df <- read.csv("https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/output/flora.csv", stringsAsFactors = FALSE, na.strings = c("", "NA"))
   
-  # ---------------------------------------------------------
-  # Filter out rows with missing authors ("Unknown")
-  # ---------------------------------------------------------
+  # Filter missing authors
   valid_mask <- mapply(function(author_o, year_o, author_r, year_r) {
     cit_o <- get_short_citation(author_o, year_o)
     cit_r <- get_short_citation(author_r, year_r)
-    
     is_valid_o <- !startsWith(cit_o, "Unknown (")
     is_valid_r <- !startsWith(cit_r, "Unknown (")
-    
     return(is_valid_o && is_valid_r)
   }, df$author_o, df$year_o, df$author_r, df$year_r)
   
   df <- df[valid_mask, ]
   
-  if (nrow(df) == 0) {
-    stop("Error: No valid rows left after filtering missing authors.")
-  }
+  if (nrow(df) == 0) stop("Error: No valid rows left after filtering missing authors.")
   
-  # ---------------------------------------------------------
-  # Select today's row (random but consistent across years)
-  # ---------------------------------------------------------
+  # Row selection
   bot_start_date <- as.Date("2024-05-23") 
   days_running <- max(0, as.numeric(Sys.Date() - bot_start_date))
   
@@ -49,9 +38,7 @@ main <- function() {
   row_index <- shuffled_indices[list_position]
   row <- df[row_index, ]
   
-  # ---------------------------------------------------------
-  # Extract and format data
-  # ---------------------------------------------------------
+  # Extract data
   title_o <- ifelse(!is.na(row$title_o), row$title_o, "")
   orig_cit <- get_short_citation(row$author_o, row$year_o)
   repl_cit <- get_short_citation(row$author_r, row$year_r)
@@ -62,25 +49,22 @@ main <- function() {
   study_type <- ifelse(!is.na(row$type), tolower(row$type), "unknown")
   action_verb <- ifelse(study_type == "reproduction", "reproduced", "replicated")
   link_label <- ifelse(study_type == "reproduction", "Reproduction", "Replication")
-  
   raw_outcome <- ifelse(!is.na(row$outcome), tolower(row$outcome), "unknown")
   
-  # Apply the correct grammar mapping based on the study type
   if (study_type == "reproduction") {
     middle_sentence <- sprintf("According to the reproduction authors, %s.", format_reproduction_outcome(raw_outcome))
   } else {
     middle_sentence <- sprintf("According to the replication authors, %s.", format_replication_outcome(raw_outcome))
   }
   
-  # ---------------------------------------------------------
-  # Build post text & check character limit (max 300)
-  # ---------------------------------------------------------
+  # Text building
   base_text <- sprintf(
-    "%s was %s by %s. %s\n\nOriginal: %s\n%s: %s",
+    "%s was %s by %s. %s\n\nOriginal: %s \n%s: %s ",
     orig_cit, action_verb, repl_cit, middle_sentence, orig_link, link_label, repl_link
   )
   
-  available_space <- 300 - nchar(base_text, type = "chars") - 6
+  # Limit check
+  available_space <- 280 - nchar(base_text, type = "chars")
   
   if (title_o != "" && available_space > 10) {
     if (nchar(title_o, type = "chars") > available_space) {
@@ -91,21 +75,28 @@ main <- function() {
     }
     
     post_text <- sprintf(
-      "%s%s was %s by %s. %s\n\nOriginal: %s\n%s: %s",
+      "%s%s was %s by %s. %s\n\nOriginal: %s \n%s: %s ",
       orig_cit, title_insert, action_verb, repl_cit, middle_sentence, orig_link, link_label, repl_link
     )
   } else {
     post_text <- base_text
   }
   
-  # ---------------------------------------------------------
-  # Send post to Bluesky
-  # ---------------------------------------------------------
   cat("Attempting to post the following text (Day", days_running, "- Row", row_index, "):\n", post_text, "\n", "Length:", nchar(post_text), "characters\n\n")
   
-  bs_post(text = post_text)
-  
-  cat("Successfully posted!\n")
+  tryCatch({
+    bs_post(text = post_text)
+    cat("Successfully posted!\n")
+  }, error = function(e) {
+    cat("!!! POSTING FAILED !!!\n")
+    cat("R Error:", e$message, "\n\n")
+    resp <- httr2::last_response()
+    if (!is.null(resp)) {
+      cat("--- SECRET BLUESKY API ERROR DETAILS ---\n")
+      cat(httr2::resp_body_string(resp), "\n")
+    }
+    quit(save = "no", status = 1)
+  })
 }
 
 main()

@@ -1,11 +1,10 @@
 # Shared helper functions used by both bot.R (daily broadcast) and
 # reply_bot.R (reactive replies), so their wording stays consistent.
 
-# 1. Helper function: Convert JSON authors to a short citation (e.g., "Name et al. (Year)")
+# 1. Helper function: Convert JSON authors to a short citation
 get_short_citation <- function(author_json, year) {
   if (is.na(author_json) || author_json == "") return(paste0("Unknown (", year, ")"))
 
-  # Catch errors in case the JSON is not formatted perfectly
   authors <- tryCatch({
     jsonlite::fromJSON(author_json)
   }, error = function(e) return(NULL))
@@ -15,6 +14,11 @@ get_short_citation <- function(author_json, year) {
   }
 
   families <- authors$family
+
+  if (length(families) == 0 || is.na(families[1])) {
+    return(paste0("Unknown (", year, ")"))
+  }
+
   n <- length(families)
 
   if (n == 1) {
@@ -28,25 +32,23 @@ get_short_citation <- function(author_json, year) {
   return(paste0(name, " (", year, ")"))
 }
 
-# 2. Helper function: Prioritize link (DOI first, then primary URL, then Open Access URL)
+# 2. Helper function: Prioritize link AND strip https:// to bypass the bskyr embed bug!
 get_link <- function(doi, primary_url, fallback_url = NA) {
-  # 1. Check if DOI exists
-  if (!is.na(doi) && doi != "") return(paste0("https://doi.org/", doi))
-
-  # 2. Check primary URL (e.g., url_r)
-  if (!is.na(primary_url) && primary_url != "") return(primary_url)
-
-  # 3. Check fallback URL (e.g., oa_url_r)
-  if (!is.na(fallback_url) && fallback_url != "") return(fallback_url)
-
-  # 4. If everything is missing
+  if (!is.na(doi) && doi != "") {
+    return(paste0("doi.org/", doi))
+  }
+  if (!is.na(primary_url) && primary_url != "") {
+    return(gsub("^https?://", "", primary_url))
+  }
+  if (!is.na(fallback_url) && fallback_url != "") {
+    return(gsub("^https?://", "", fallback_url))
+  }
   return("No link available")
 }
 
-# 3. Helper function: Convert raw reproduction outcomes into readable sentences
+# 3. Helper function: Repro
 format_reproduction_outcome <- function(outcome) {
   outcome <- gsub("computionally", "computationally", outcome)
-
   mapping <- c(
     "computationally successful, robust" = "the reproduction was computationally successful and robust",
     "computationally successful, robustness challenges" = "the reproduction was computationally successful, but had robustness challenges",
@@ -58,7 +60,6 @@ format_reproduction_outcome <- function(outcome) {
     "computation not checked, robustness challenges" = "computational reproducibility was not checked and there were robustness challenges",
     "computation not checked, robustness not checked" = "neither computational reproducibility nor robustness were checked"
   )
-
   if (outcome %in% names(mapping)) {
     return(mapping[[outcome]])
   } else {
@@ -66,17 +67,16 @@ format_reproduction_outcome <- function(outcome) {
   }
 }
 
-# 4. Helper function: Convert raw replication outcomes into grammatically correct sentences
+# 4. Helper function: Replications
 format_replication_outcome <- function(outcome) {
   mapping <- c(
     "successful" = "the replication attempt was successful",
     "failed" = "the replication attempt failed",
     "mixed" = "the replication attempt yielded mixed results",
     "uninformative" = "the replication attempt was uninformative",
-    "descriptive only" = "the replication attempt was descriptive only",
+    "descriptive only" = "there was no success or failure but the replication was uninformative",
     "statistically successful but flawed" = "the replication attempt was statistically successful but flawed"
   )
-
   if (outcome %in% names(mapping)) {
     return(mapping[[outcome]])
   } else {
