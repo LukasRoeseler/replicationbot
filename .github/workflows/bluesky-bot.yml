@@ -4,14 +4,6 @@ on:
   schedule:
     - cron: '0 12 * * *'
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: 'Dry run the reply bot (log matches without actually posting)'
-        type: boolean
-        default: false
-
-permissions:
-  contents: write
 
 jobs:
   post-to-bluesky:
@@ -20,13 +12,13 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-        
+
       - name: Setup R
         uses: r-lib/actions/setup-r@v2
         with:
           r-version: 'release'
           use-public-rspm: true
-          
+
       # Das ist der Gamechanger: Installiert R-Pakete UND Linux-Abhängigkeiten
       - name: Install Packages
         uses: r-lib/actions/setup-r-dependencies@v2
@@ -34,24 +26,9 @@ jobs:
           packages: |
             any::bskyr
             any::jsonlite
-            
+
       - name: Run Bot Script
         env:
           BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
           BLUESKY_PASSWORD: ${{ secrets.BLUESKY_PASSWORD }}
         run: Rscript bot.R
-
-      - name: Run Reply Bot Script
-        env:
-          BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
-          BLUESKY_PASSWORD: ${{ secrets.BLUESKY_PASSWORD }}
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
-        run: Rscript reply_bot.R
-
-      - name: Commit updated reply log
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add replied_posts.csv
-          git diff --cached --quiet || git commit -m "Update replied_posts.csv [skip ci]"
-          git push

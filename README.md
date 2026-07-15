@@ -6,9 +6,11 @@ Account: <https://bsky.app/profile/replicationbot.bsky.social>
 
 ## Reply bot
 
-In addition to the daily broadcast (`bot.R`), `reply_bot.R` runs after it in the same workflow. It searches recent Bluesky posts linking to `doi.org`, checks whether the linked DOI is an original study (`doi_o`) that has a known replication in the FLoRA dataset, and if so replies with the replication's outcome and a pointer to the corresponding [FLoRA Atlas](https://forrt.org/flora-replication-atlas/) entry (e.g. "Did you know there is a replication to this study? According to the replication authors, the replication attempt yielded mixed results."). Posts already replied to are tracked in `replied_posts.csv` to avoid duplicate replies. Outcome wording is shared with `bot.R` via `helpers.R`, so both keep the same voice.
+In addition to the daily broadcast (`bot.R`, its own workflow), `reply_bot.R` runs on its own schedule (`.github/workflows/reply-bot.yml`, every 15 minutes). It searches recent Bluesky posts linking to `doi.org`, checks whether the linked DOI is an original study (`doi_o`) that has a known replication in the FLoRA dataset, and if so replies with the replication's outcome and a pointer to the corresponding [FLoRA Atlas](https://forrt.org/flora-replication-atlas/) entry (e.g. "Did you know there is a replication to this study? According to the replication authors, the replication attempt yielded mixed results."). Posts already replied to are tracked in `replied_posts.csv` to avoid duplicate replies. Outcome wording is shared with `bot.R` via `helpers.R`, so both keep the same voice.
 
 Detection reads the DOI from a post's rich-text link facets (the real URL Bluesky stores even when it truncates the *visible* text to something like `doi.org/10.1207/s153...`), its external embed/link-card, and its plain text, in that order — so it isn't limited to only-visible-text links.
+
+**Trial period**: this feature is running on a one-week trial and stops replying automatically after 2026-07-22 (`EVALUATION_END_DATE` in `reply_bot.R`), pending a decision on whether to keep it enabled. Remove that check once it's confirmed to stay.
 
 Known limitations:
 - It can't verify computationally whether a given post is truly *about* the study vs. merely citing it in passing.

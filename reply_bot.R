@@ -4,6 +4,12 @@ library(bskyr)
 # (also used by bot.R)
 source("helpers.R")
 
+# Trial period: this reply feature is being evaluated for one week before
+# deciding whether to keep it running. After this date, the script exits
+# without searching or replying. Remove this check (and the date below) once
+# the trial is over and the feature is confirmed to stay.
+EVALUATION_END_DATE <- as.Date("2026-07-22")
+
 # 1. Helper function: Normalize a DOI (or a doi.org URL / "doi:" reference) for comparison
 normalize_doi <- function(x) {
   x <- trimws(x)
@@ -88,6 +94,11 @@ save_replied_log <- function(log, path) {
 
 # 6. Main process
 main <- function() {
+  if (Sys.Date() >= EVALUATION_END_DATE) {
+    cat("Evaluation period ended on", format(EVALUATION_END_DATE), "- reply bot is paused.\n")
+    return(invisible(NULL))
+  }
+
   dry_run <- tolower(Sys.getenv("DRY_RUN", "false")) == "true"
 
   # Load credentials from GitHub Secrets
@@ -127,8 +138,11 @@ main <- function() {
   # Search recent posts linking to doi.org. clean = FALSE returns the raw
   # parsed JSON response (a plain nested list mirroring the AT Protocol
   # lexicon exactly), so post facets/embeds can be read reliably below.
+  # This runs every 15 minutes; a 20-minute lookback gives a cushion against
+  # a delayed/skipped cron tick without risking duplicate replies (dedup is
+  # keyed on post_uri via replied_posts.csv, so overlap is harmless).
   # ---------------------------------------------------------
-  since <- format(Sys.time() - as.difftime(25, units = "hours"), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  since <- format(Sys.time() - as.difftime(20, units = "mins"), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
 
   resp <- tryCatch({
     bs_search_posts(query = "doi.org", domain = "doi.org", sort = "latest", since = since, limit = 50, clean = FALSE)
