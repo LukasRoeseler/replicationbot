@@ -16,41 +16,64 @@ normalize_doi <- function(x) {
   tolower(x)
 }
 
-# 2. Helper function: Extract a raw DOI-like token from a post's plain text
-# Note: only catches doi.org links that appear as visible text in the post body.
-# Posts where the doi.org link is only present via an embed/link-card (no visible
-# URL text) will not be caught by this v1 approach.
+# 2. Helper function: Extract a raw doi.org URL from a post's plain text.
+# This is a fallback only — Bluesky truncates the *visible* text of any long
+# pasted URL (e.g. "doi.org/10.1207/s153...") and stores the real, full URL
+# separately as a rich-text facet (see extract_dois_from_post() below), so
+# most real posts won't have a usable full DOI in the visible text at all.
 extract_doi_from_text <- function(text) {
-  if (length(text) == 0 || is.na(text) || text == "") return(NA_character_)
-  m <- regmatches(text, regexpr("(?i)doi\\.org/(10\\.[0-9]{4,9}/[^\\s\"'<>\\)\\],]+)", text, perl = TRUE))
-  if (length(m) == 0 || m == "") return(NA_character_)
+  if (length(text) == 0 || is.na(text) || text == "") return(character())
+  m <- regmatches(text, gregexpr("(?i)doi\\.org/(10\\.[0-9]{4,9}/[^\\s\"'<>\\)\\],]+)", text, perl = TRUE))[[1]]
   m
 }
 
-# 3. Helper function: Robustly read a field off a single search-result row,
-# regardless of whether bskyr returns nested objects (e.g. `author`, `record`)
-# as flattened columns (e.g. `author_handle`) or as list-columns holding a
-# nested one-row tibble/list (e.g. `author[[1]]$handle`).
-get_post_field <- function(post, obj_col, field, flat_col = paste0(obj_col, "_", field)) {
-  if (flat_col %in% names(post)) {
-    val <- post[[flat_col]]
-    if (length(val) >= 1 && !is.na(val[[1]])) return(as.character(val[[1]]))
-  }
-  if (obj_col %in% names(post)) {
-    obj <- post[[obj_col]]
-    if (is.list(obj)) {
-      inner <- obj
-      if (length(obj) == 1 && is.list(obj[[1]])) inner <- obj[[1]]
-      if (field %in% names(inner)) {
-        val <- inner[[field]]
-        if (length(val) >= 1 && !is.na(val[[1]])) return(as.character(val[[1]]))
+# 3. Helper function: Pull every candidate doi.org URL out of a raw post
+# object (as returned by bs_search_posts(..., clean = FALSE), which mirrors
+# the AT Protocol JSON 1:1 — see app.bsky.feed.post lexicon). Checks, in
+# order: rich-text link facets (catches truncated-display links, the common
+# case for any long pasted URL), the external embed/link-card URI, and
+# finally the visible text itself.
+extract_dois_from_post <- function(post) {
+  candidates <- character()
+
+  facets <- post$record$facets
+  if (!is.null(facets)) {
+    for (facet in facets) {
+      for (feature in facet$features) {
+        furi <- feature$uri
+        if (!is.null(furi) && grepl("doi\\.org", furi, ignore.case = TRUE)) {
+          candidates <- c(candidates, furi)
+        }
       }
     }
   }
-  NA_character_
+
+  embed_uri <- post$record$embed$external$uri
+  if (!is.null(embed_uri) && grepl("doi\\.org", embed_uri, ignore.case = TRUE)) {
+    candidates <- c(candidates, embed_uri)
+  }
+
+  post_text <- post$record$text
+  if (!is.null(post_text)) {
+    candidates <- c(candidates, extract_doi_from_text(post_text))
+  }
+
+  unique(candidates)
 }
 
-# 4. Helper functions: Read/write the dedup log of posts already replied to
+# 4. Helper function: Flatten the raw (clean = FALSE) bs_search_posts() result
+# into a plain list of post objects, regardless of whether it comes back as a
+# single page (a list with a $posts field) or a list of multiple such pages.
+flatten_search_posts <- function(resp) {
+  if (!is.null(resp$posts)) return(resp$posts)
+  posts <- list()
+  for (page in resp) {
+    if (!is.null(page$posts)) posts <- c(posts, page$posts)
+  }
+  posts
+}
+
+# 5. Helper functions: Read/write the dedup log of posts already replied to
 load_replied_log <- function(path) {
   if (file.exists(path)) {
     read.csv(path, stringsAsFactors = FALSE, colClasses = "character")
@@ -63,7 +86,7 @@ save_replied_log <- function(log, path) {
   write.csv(log, path, row.names = FALSE)
 }
 
-# 5. Main process
+# 6. Main process
 main <- function() {
   dry_run <- tolower(Sys.getenv("DRY_RUN", "false")) == "true"
 
@@ -101,18 +124,22 @@ main <- function() {
   already_replied_uris <- replied_log$post_uri
 
   # ---------------------------------------------------------
-  # Search recent posts linking to doi.org
+  # Search recent posts linking to doi.org. clean = FALSE returns the raw
+  # parsed JSON response (a plain nested list mirroring the AT Protocol
+  # lexicon exactly), so post facets/embeds can be read reliably below.
   # ---------------------------------------------------------
   since <- format(Sys.time() - as.difftime(25, units = "hours"), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
 
-  candidates <- tryCatch({
-    bs_search_posts(query = "doi.org", domain = "doi.org", sort = "latest", since = since, limit = 50)
+  resp <- tryCatch({
+    bs_search_posts(query = "doi.org", domain = "doi.org", sort = "latest", since = since, limit = 50, clean = FALSE)
   }, error = function(e) {
     cat("Warning: bs_search_posts() failed:", conditionMessage(e), "\n")
     NULL
   })
 
-  if (is.null(candidates) || nrow(candidates) == 0) {
+  candidates <- if (is.null(resp)) list() else flatten_search_posts(resp)
+
+  if (length(candidates) == 0) {
     cat("No candidate posts found in this run.\n")
     return(invisible(NULL))
   }
@@ -123,23 +150,23 @@ main <- function() {
   # ---------------------------------------------------------
   new_log_rows <- list()
 
-  for (i in seq_len(nrow(candidates))) {
-    post <- candidates[i, ]
+  for (post in candidates) {
+    post_uri <- post$uri
+    if (is.null(post_uri) || post_uri %in% already_replied_uris) next
 
-    post_uri <- post$uri[[1]]
-    if (is.na(post_uri) || post_uri %in% already_replied_uris) next
+    author_handle <- post$author$handle
+    if (!is.null(author_handle) && tolower(author_handle) == tolower(bsky_handle)) next
 
-    author_handle <- get_post_field(post, "author", "handle")
-    if (!is.na(author_handle) && tolower(author_handle) == tolower(bsky_handle)) next
+    post_text <- post$record$text
+    if (!is.null(post_text) && grepl("flora-replication-atlas", post_text, ignore.case = TRUE)) next
 
-    post_text <- get_post_field(post, "record", "text")
-    if (!is.na(post_text) && grepl("flora-replication-atlas", post_text, ignore.case = TRUE)) next
+    raw_dois <- extract_dois_from_post(post)
+    if (length(raw_dois) == 0) next
 
-    raw_doi <- extract_doi_from_text(post_text)
-    if (is.na(raw_doi)) next
-
-    doi <- normalize_doi(raw_doi)
-    if (!(doi %in% flora_dois)) next
+    candidate_dois <- unique(normalize_doi(raw_dois))
+    matched_dois <- candidate_dois[candidate_dois %in% flora_dois]
+    if (length(matched_dois) == 0) next
+    doi <- matched_dois[1]
 
     row <- flora_valid[flora_valid$doi_o_norm == doi, ][1, ]
     study_type <- ifelse(!is.na(row$type), tolower(row$type), "unknown")
