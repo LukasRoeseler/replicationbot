@@ -9,38 +9,30 @@
 <link rel="apple-touch-icon" href="logo.png">
 <style>
   :root {
-    --bg: #f7f7f5;
-    --fg: #1c1c1c;
-    --muted: #5b5b5b;
-    --card-bg: #ffffff;
-    --border: #e2e2df;
-    --accent: #2f6f4f;
-    --accent-contrast: #ffffff;
-    --link: #1a5fb4;
-    --code-bg: #f0f0ee;
+    --bg: #ffffff;
+    --fg: #0f1419;
+    --muted: #57606a;
+    --border: #eaedf0;
+    --accent: #1185fe;
+    --hover-bg: #f7f9fa;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #16171a;
-      --fg: #e9e9e7;
-      --muted: #a3a3a0;
-      --card-bg: #202126;
-      --border: #33343a;
-      --accent: #6fbf8f;
-      --accent-contrast: #0d1410;
-      --link: #7db1e8;
-      --code-bg: #26272c;
+      --bg: #000000;
+      --fg: #e7e9ea;
+      --muted: #8b98a5;
+      --border: #22282e;
+      --accent: #48a7ff;
+      --hover-bg: #0c0f11;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #16171a; --fg: #e9e9e7; --muted: #a3a3a0; --card-bg: #202126;
-    --border: #33343a; --accent: #6fbf8f; --accent-contrast: #0d1410;
-    --link: #7db1e8; --code-bg: #26272c;
+    --bg: #000000; --fg: #e7e9ea; --muted: #8b98a5; --border: #22282e;
+    --accent: #48a7ff; --hover-bg: #0c0f11;
   }
   :root[data-theme="light"] {
-    --bg: #f7f7f5; --fg: #1c1c1c; --muted: #5b5b5b; --card-bg: #ffffff;
-    --border: #e2e2df; --accent: #2f6f4f; --accent-contrast: #ffffff;
-    --link: #1a5fb4; --code-bg: #f0f0ee;
+    --bg: #ffffff; --fg: #0f1419; --muted: #57606a; --border: #eaedf0;
+    --accent: #1185fe; --hover-bg: #f7f9fa;
   }
 
   * { box-sizing: border-box; }
@@ -49,163 +41,135 @@
     background: var(--bg);
     color: var(--fg);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    line-height: 1.5;
+    font-size: 15px;
+    line-height: 1.4;
   }
   main {
-    max-width: 760px;
+    max-width: 600px;
     margin: 0 auto;
-    padding: 2.5rem 1.25rem 4rem;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    min-height: 100vh;
   }
-  a { color: var(--link); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
 
-  .hero {
+  .profile-header {
     display: flex;
-    align-items: center;
-    gap: 1.25rem;
-    margin-bottom: 1.75rem;
+    gap: 1rem;
+    padding: 1.25rem 1rem;
+    border-bottom: 1px solid var(--border);
   }
-  .hero img {
-    width: 84px;
-    height: 84px;
-    border-radius: 20px;
+  .avatar {
+    border-radius: 50%;
     object-fit: cover;
-    border: 1px solid var(--border);
     flex-shrink: 0;
+    display: block;
+    background: var(--hover-bg);
   }
-  .hero h1 {
-    margin: 0 0 0.15rem;
-    font-size: 1.6rem;
-  }
-  .hero p.tagline {
-    margin: 0;
-    color: var(--muted);
-    font-size: 0.95rem;
-  }
-
-  .card {
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.25rem 1.5rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .badges { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; }
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.3rem 0.7rem;
-    border-radius: 999px;
-    background: var(--code-bg);
-    border: 1px solid var(--border);
-    font-size: 0.82rem;
-    text-decoration: none;
-    color: var(--fg);
-  }
-
-  h2 {
-    font-size: 1.15rem;
-    margin: 0 0 0.75rem;
-  }
-
-  .stat-row {
+  .avatar-lg { width: 56px; height: 56px; }
+  .avatar-md { width: 40px; height: 40px; }
+  .avatar-fallback {
     display: flex;
-    gap: 1.5rem;
-    flex-wrap: wrap;
-    margin-bottom: 1rem;
-  }
-  .stat {
-    flex: 1 1 140px;
-  }
-  .stat .n {
-    font-size: 1.8rem;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
     font-weight: 700;
-    color: var(--accent);
   }
-  .stat .l {
-    font-size: 0.8rem;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-  }
+  .avatar-lg.avatar-fallback { font-size: 1.4rem; }
+  .avatar-md.avatar-fallback { font-size: 1rem; }
 
-  ul.activity {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  ul.activity li {
-    padding: 0.9rem 0;
-    border-top: 1px solid var(--border);
-  }
-  ul.activity li:first-child { border-top: none; }
-
-  .thread-meta {
+  .display-name { font-weight: 800; font-size: 1.15rem; }
+  .handle { color: var(--muted); font-size: 0.9rem; }
+  .bio { margin: 0.5rem 0 0; font-size: 0.92rem; }
+  .profile-links {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    gap: 0.6rem;
-    margin-bottom: 0.6rem;
+    gap: 0.9rem;
+    margin-top: 0.6rem;
     font-size: 0.85rem;
   }
-  .thread-meta .doi {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 0.82rem;
-    background: var(--code-bg);
-    padding: 0.1rem 0.4rem;
-    border-radius: 6px;
-  }
-  .thread-meta .when { color: var(--muted); }
 
-  .thread {
+  .feed-header {
     display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border);
   }
-  .post {
-    background: var(--code-bg);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 0.7rem 0.9rem;
+  .feed-header h2 { font-size: 1rem; margin: 0; }
+  .feed-sub { color: var(--muted); font-size: 0.82rem; }
+
+  .thread-entry {
+    padding: 0.75rem 1rem 0.9rem;
+    border-bottom: 1px solid var(--border);
   }
-  .post.level-1 { margin-left: 1.25rem; }
-  .post.level-2 { margin-left: 2.5rem; }
-  .post-role {
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--accent);
-    margin-bottom: 0.2rem;
+  .thread-entry .footer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    padding-left: calc(40px + 0.65rem);
+    font-size: 0.82rem;
+    color: var(--muted);
   }
-  .post-author { font-weight: 600; font-size: 0.9rem; }
-  .post-author .handle { font-weight: 400; color: var(--muted); }
-  .post-text {
-    margin-top: 0.25rem;
-    white-space: pre-wrap;
+  .thread-entry .footer-row .doi {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+  }
+
+  .post-row {
+    display: flex;
+    gap: 0.65rem;
+    padding: 0.4rem 0;
+    position: relative;
+  }
+  .avatar-rail { position: relative; width: 40px; flex-shrink: 0; }
+  .avatar-rail img, .avatar-rail .avatar-fallback { position: relative; z-index: 1; }
+  .post-row:not(:last-of-type) .avatar-rail::after {
+    content: "";
+    position: absolute;
+    top: 40px;
+    bottom: -0.4rem;
+    left: 19px;
+    width: 2px;
+    background: var(--border);
+  }
+  .post-body { min-width: 0; flex: 1; }
+  .post-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.3rem;
     font-size: 0.92rem;
   }
-  .post-link {
-    display: inline-block;
-    margin-top: 0.4rem;
-    font-size: 0.82rem;
+  .post-head .name { font-weight: 700; }
+  .post-head .handle, .post-head .dot, .post-head .time { color: var(--muted); font-size: 0.88rem; }
+  .post-head .time:hover { text-decoration: underline; }
+  .post-text {
+    margin-top: 0.15rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 0.95rem;
   }
   .thread-error {
     color: var(--muted);
     font-size: 0.85rem;
     font-style: italic;
-    margin: 0;
+    margin: 0.4rem 0 0;
+    padding-left: calc(40px + 0.65rem);
   }
 
   .empty, .error {
     color: var(--muted);
-    font-size: 0.95rem;
+    font-size: 0.9rem;
+    padding: 1rem;
   }
   .error { color: #c0392b; }
 
   footer {
-    margin-top: 2.5rem;
-    font-size: 0.8rem;
+    padding: 1rem;
+    font-size: 0.78rem;
     color: var(--muted);
   }
   footer p { margin: 0.3rem 0; }
@@ -214,53 +178,36 @@
 <body>
 <main>
 
-  <div class="hero">
-    <img src="logo.png" alt="Replication Bot logo">
+  <div class="profile-header">
+    <img class="avatar avatar-lg" src="logo.png" alt="Replication Bot avatar">
     <div>
-      <h1>Hi, I'm Replication Bot</h1>
-      <p class="tagline">I share replication attempts from the FORRT FLoRA dataset, and reply on Bluesky when I spot a study that already has one.</p>
+      <div class="display-name">Replication Bot</div>
+      <div class="handle">@replicationbot.bsky.social</div>
+      <p class="bio">
+        Sharing a replication or reproduction attempt from the
+        <a href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener">FORRT Library of Replication Attempts (FLoRA)</a>
+        every day, and replying here whenever someone posts a doi.org link to a study that already has one on record.
+      </p>
+      <div class="profile-links">
+        <a href="https://bsky.app/profile/replicationbot.bsky.social" target="_blank" rel="noopener">View on Bluesky</a>
+        <a href="https://github.com/LukasRoeseler/replicationbot" target="_blank" rel="noopener">Source</a>
+        <a href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener">FLoRA Atlas</a>
+      </div>
     </div>
   </div>
 
-  <div class="card">
-    <p>
-      Every day, I post about a randomly selected replication (or reproduction) attempt from the
-      <a href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener">FORRT Library of Replication Attempts (FLoRA)</a>,
-      including its outcome and links to the original and replication studies.
-    </p>
-    <p>
-      I also keep an eye on Bluesky for posts that link to a study (via a doi.org link) that already has a known
-      replication in the dataset. When I find one, I reply with a pointer to the corresponding FLoRA Atlas entry,
-      so more people can discover it.
-    </p>
-    <div class="badges">
-      <a class="badge" href="https://bsky.app/profile/replicationbot.bsky.social" target="_blank" rel="noopener">🦋 @replicationbot.bsky.social</a>
-      <a class="badge" href="https://github.com/LukasRoeseler/replicationbot" target="_blank" rel="noopener">💻 Source code</a>
-      <a class="badge" href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener">📚 FLoRA Atlas</a>
-    </div>
+  <div class="feed-header">
+    <h2>Recent replies</h2>
+    <span class="feed-sub" id="feed-sub">Loading…</span>
   </div>
-
-  <div class="card">
-    <h2>My activity</h2>
-    <div class="stat-row">
-      <div class="stat">
-        <div class="n" id="stat-total">–</div>
-        <div class="l">Replies since Jul 15, 2026</div>
-      </div>
-      <div class="stat">
-        <div class="n" id="stat-latest">–</div>
-        <div class="l">Most recent reply</div>
-      </div>
-    </div>
-    <div id="activity-container">
-      <p class="empty">Loading activity log…</p>
-    </div>
+  <div id="activity-container">
+    <p class="empty">Loading activity…</p>
   </div>
 
   <footer>
     <p>Data source: FORRT Library of Replication Attempts (FLoRA), CC-BY license. See the
       <a href="https://github.com/forrtproject/FReD-data/blob/main/output/citation.txt" target="_blank" rel="noopener">recommended citation</a>.</p>
-    <p>This page reads directly from <code>replied_posts.csv</code> in this repository, then loads each conversation live from Bluesky's public API.</p>
+    <p>This page reads <code>replied_posts.csv</code> from this repository, then loads each conversation live from Bluesky's public API.</p>
   </footer>
 
 </main>
@@ -270,8 +217,9 @@
   const ACTIVITY_SINCE = new Date("2026-07-15T00:00:00Z");
   const BOT_HANDLE = "replicationbot.bsky.social";
   const container = document.getElementById("activity-container");
-  const statTotal = document.getElementById("stat-total");
-  const statLatest = document.getElementById("stat-latest");
+  const feedSub = document.getElementById("feed-sub");
+
+  const AVATAR_COLORS = ["#1185fe", "#7856ff", "#e0245e", "#17bf63", "#f45d22", "#794bc4"];
 
   function parseCsv(text) {
     const lines = text.split(/\r\n|\n|\r/).filter(function (l) { return l.trim().length > 0; });
@@ -321,7 +269,7 @@
     return "https://forrt.org/flora-replication-atlas/?dois=" + encodeURIComponent(doi);
   }
 
-  function formatWhen(iso) {
+  function fullDate(iso) {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
     return d.toLocaleString(undefined, {
@@ -329,19 +277,58 @@
     });
   }
 
-  function renderPostBlock(view, roleLabel, level) {
+  function timeAgo(iso) {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    const diffSec = Math.round((Date.now() - d.getTime()) / 1000);
+    if (diffSec < 60) return "now";
+    const diffMin = Math.round(diffSec / 60);
+    if (diffMin < 60) return diffMin + "m";
+    const diffHr = Math.round(diffMin / 60);
+    if (diffHr < 24) return diffHr + "h";
+    const diffDay = Math.round(diffHr / 24);
+    if (diffDay < 365) return diffDay + "d";
+    return Math.round(diffDay / 365) + "y";
+  }
+
+  function avatarColor(seed) {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+    return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+  }
+
+  function avatarHtml(author, size) {
+    const handle = (author && author.handle) || "?";
+    const name = (author && author.displayName) || handle;
+    if (author && author.avatar) {
+      return '<img class="avatar ' + size + '" src="' + escapeHtml(author.avatar) + '" alt="" loading="lazy">';
+    }
+    const initial = escapeHtml(name.trim().charAt(0).toUpperCase() || "?");
+    return '<div class="avatar ' + size + ' avatar-fallback" style="background:' + avatarColor(handle) + '">' + initial + "</div>";
+  }
+
+  function renderPostRow(view) {
     if (!view || !view.author) return "";
     const handle = view.author.handle || "unknown";
     const name = view.author.displayName || handle;
     const text = view.record && view.record.text ? view.record.text : "";
     const url = atUriToBskyUrl(view.uri);
+    const createdAt = view.record && view.record.createdAt;
     return (
-      '<div class="post level-' + level + '">' +
-        '<div class="post-role">' + escapeHtml(roleLabel) + '</div>' +
-        '<div class="post-author">' + escapeHtml(name) + ' <span class="handle">@' + escapeHtml(handle) + '</span></div>' +
-        '<div class="post-text">' + escapeHtml(text) + '</div>' +
-        (url ? '<a class="post-link" href="' + url + '" target="_blank" rel="noopener">View on Bluesky</a>' : '') +
-      '</div>'
+      '<div class="post-row">' +
+        '<div class="avatar-rail">' + avatarHtml(view.author, "avatar-md") + "</div>" +
+        '<div class="post-body">' +
+          '<div class="post-head">' +
+            '<span class="name">' + escapeHtml(name) + "</span>" +
+            '<span class="handle">@' + escapeHtml(handle) + "</span>" +
+            '<span class="dot">&middot;</span>' +
+            (url && createdAt
+              ? '<a class="time" href="' + url + '" target="_blank" rel="noopener" title="' + escapeHtml(fullDate(createdAt)) + '">' + timeAgo(createdAt) + "</a>"
+              : "") +
+          "</div>" +
+          '<div class="post-text">' + escapeHtml(text) + "</div>" +
+        "</div>" +
+      "</div>"
     );
   }
 
@@ -365,35 +352,33 @@
 
   function renderThreadEntry(row) {
     const rootUrl = atUriToBskyUrl(row.post_uri);
-    const doiHtml = row.doi ? '<span class="doi">' + escapeHtml(row.doi) + "</span>" : "";
-    const metaHtml =
-      '<div class="thread-meta">' +
-        (doiHtml ? "<span>Study " + doiHtml + "</span>" : "") +
-        '<span class="when">' + formatWhen(row.replied_at) + "</span>" +
-        (rootUrl ? '<a href="' + rootUrl + '" target="_blank" rel="noopener">Open conversation on Bluesky &rarr;</a>' : "") +
+    const footerHtml =
+      '<div class="footer-row">' +
+        (row.doi ? '<a class="doi" href="' + floraUrl(row.doi) + '" target="_blank" rel="noopener">' + escapeHtml(row.doi) + "</a>" : "<span></span>") +
+        (rootUrl ? '<a href="' + rootUrl + '" target="_blank" rel="noopener">View full conversation &rarr;</a>' : "") +
       "</div>";
 
     return fetchThread(row.post_uri).then(function (thread) {
       if (!thread || !thread.post) {
-        return "<li>" + metaHtml + '<p class="thread-error">Original post is no longer available.</p></li>';
+        return '<article class="thread-entry"><p class="thread-error">Original post is no longer available.</p>' + footerHtml + "</article>";
       }
 
-      const parts = [renderPostBlock(thread.post, "Original post", 0)];
+      const rows = [renderPostRow(thread.post)];
       const botReplyNode = findBotReply(thread);
 
       if (botReplyNode) {
-        parts.push(renderPostBlock(botReplyNode.post, "Replication Bot replied", 1));
+        rows.push(renderPostRow(botReplyNode.post));
         const subReplies = botReplyNode.replies || [];
         subReplies.forEach(function (sr) {
-          if (sr && sr.post) parts.push(renderPostBlock(sr.post, "Reply to the bot", 2));
+          if (sr && sr.post) rows.push(renderPostRow(sr.post));
         });
-      } else {
-        parts.push('<p class="thread-error">Could not find the bot’s reply in this thread (it may have been removed).</p>');
       }
 
-      return "<li>" + metaHtml + '<div class="thread">' + parts.join("") + "</div></li>";
+      const errorHtml = botReplyNode ? "" : '<p class="thread-error">Could not find the bot’s reply in this thread (it may have been removed).</p>';
+
+      return '<article class="thread-entry">' + rows.join("") + errorHtml + footerHtml + "</article>";
     }).catch(function (err) {
-      return "<li>" + metaHtml + '<p class="thread-error">Could not load this conversation (' + escapeHtml(err.message) + ').</p></li>';
+      return '<article class="thread-entry"><p class="thread-error">Could not load this conversation (' + escapeHtml(err.message) + ").</p>" + footerHtml + "</article>";
     });
   }
 
@@ -403,8 +388,9 @@
       .filter(function (r) { const d = new Date(r.replied_at); return !isNaN(d.getTime()) && d >= ACTIVITY_SINCE; })
       .sort(function (a, b) { return new Date(b.replied_at) - new Date(a.replied_at); });
 
-    statTotal.textContent = filtered.length;
-    statLatest.textContent = filtered.length > 0 ? formatWhen(filtered[0].replied_at) : "—";
+    feedSub.textContent = filtered.length === 0
+      ? "No replies yet"
+      : filtered.length + (filtered.length === 1 ? " reply" : " replies") + " · last " + timeAgo(filtered[0].replied_at);
 
     if (filtered.length === 0) {
       container.innerHTML = '<p class="empty">No replies logged yet — check back soon!</p>';
@@ -413,7 +399,7 @@
 
     container.innerHTML = '<p class="empty">Loading conversations…</p>';
     Promise.all(filtered.map(renderThreadEntry)).then(function (items) {
-      container.innerHTML = '<ul class="activity">' + items.join("") + "</ul>";
+      container.innerHTML = items.join("");
     });
   }
 
@@ -424,7 +410,7 @@
     })
     .then(function (text) { render(parseCsv(text)); })
     .catch(function (err) {
-      container.innerHTML = '<p class="error">Could not load activity log (' + err.message + ').</p>';
+      container.innerHTML = '<p class="error">Could not load activity log (' + err.message + ").</p>";
     });
 })();
 </script>
