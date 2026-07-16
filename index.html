@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Replication Bot</title>
-<meta name="description" content="A Bluesky bot that shares replication attempts from the FORRT FLoRA dataset and replies when someone posts about a study that has a known replication.">
+<meta name="description" content="A Bluesky bot that shares replication attempts from the FORRT FLoRA dataset, and replies when someone posts about a study that was replicated or retracted.">
 <link rel="icon" type="image/png" href="logo.png">
 <link rel="apple-touch-icon" href="logo.png">
 <style>
@@ -82,6 +82,7 @@
   .display-name { font-weight: 800; font-size: 1.15rem; }
   .handle { color: var(--muted); font-size: 0.9rem; }
   .bio { margin: 0.5rem 0 0; font-size: 0.92rem; }
+  .trial-note { margin: 0.5rem 0 0; font-size: 0.85rem; color: var(--muted); }
   .profile-links {
     display: flex;
     flex-wrap: wrap;
@@ -108,15 +109,26 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 0.75rem;
     margin-top: 0.5rem;
     padding-left: calc(40px + 0.65rem);
     font-size: 0.82rem;
     color: var(--muted);
   }
+  .thread-entry .footer-row .footer-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
   .thread-entry .footer-row .doi {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 0.78rem;
   }
+  .kind { font-weight: 600; white-space: nowrap; }
+  .kind-replication { color: var(--accent); }
+  .kind-retraction { color: #e0245e; }
+  .kind-concern { color: #d97a1f; }
 
   .post-row {
     display: flex;
@@ -186,8 +198,9 @@
       <p class="bio">
         Sharing a replication or reproduction attempt from the
         <a href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener">FORRT Library of Replication Attempts (FLoRA)</a>
-        every day, and replying here whenever someone posts a doi.org link to a study that already has one on record.
+        every day, and replying here whenever someone posts a doi.org link to a study that was replicated, retracted, or given an editorial notice of concern (per <a href="https://retractionwatch.com/" target="_blank" rel="noopener">Retraction Watch</a>).
       </p>
+      <p class="trial-note">The reply behavior is a one-week trial running through <strong>July 22, 2026</strong>, before deciding whether to keep it running.</p>
       <div class="profile-links">
         <a href="https://bsky.app/profile/replicationbot.bsky.social" target="_blank" rel="noopener">View on Bluesky</a>
         <a href="https://github.com/LukasRoeseler/replicationbot" target="_blank" rel="noopener">Source</a>
@@ -207,7 +220,7 @@
   <footer>
     <p>Data source: FORRT Library of Replication Attempts (FLoRA), CC-BY license. See the
       <a href="https://github.com/forrtproject/FReD-data/blob/main/output/citation.txt" target="_blank" rel="noopener">recommended citation</a>.</p>
-    <p>This page reads <code>replied_posts.csv</code> from this repository, then loads each conversation live from Bluesky's public API.</p>
+    <p>This page reads <code>replied_posts.csv</code> and <code>retraction_replies.csv</code> from this repository, then loads each conversation live from Bluesky's public API.</p>
   </footer>
 
 </main>
@@ -267,6 +280,28 @@
 
   function floraUrl(doi) {
     return "https://forrt.org/flora-replication-atlas/?dois=" + encodeURIComponent(doi);
+  }
+
+  function doiOrgUrl(doi) {
+    return "https://doi.org/" + doi;
+  }
+
+  function subjectLabel(row) {
+    if (row.kind === "retraction") {
+      return row.notice_type === "Expression of concern" ? "Editorial concern" : "Retraction";
+    }
+    return "Replication";
+  }
+
+  function subjectKindClass(row) {
+    if (row.kind === "retraction") {
+      return row.notice_type === "Expression of concern" ? "kind-concern" : "kind-retraction";
+    }
+    return "kind-replication";
+  }
+
+  function subjectUrl(row) {
+    return row.kind === "retraction" ? doiOrgUrl(row.doi) : floraUrl(row.doi);
   }
 
   function fullDate(iso) {
@@ -354,7 +389,10 @@
     const rootUrl = atUriToBskyUrl(row.post_uri);
     const footerHtml =
       '<div class="footer-row">' +
-        (row.doi ? '<a class="doi" href="' + floraUrl(row.doi) + '" target="_blank" rel="noopener">' + escapeHtml(row.doi) + "</a>" : "<span></span>") +
+        '<div class="footer-left">' +
+          '<span class="kind ' + subjectKindClass(row) + '">' + subjectLabel(row) + "</span>" +
+          (row.doi ? '<a class="doi" href="' + subjectUrl(row) + '" target="_blank" rel="noopener">' + escapeHtml(row.doi) + "</a>" : "") +
+        "</div>" +
         (rootUrl ? '<a href="' + rootUrl + '" target="_blank" rel="noopener">View full conversation &rarr;</a>' : "") +
       "</div>";
 
@@ -403,15 +441,32 @@
     });
   }
 
-  fetch("replied_posts.csv", { cache: "no-store" })
-    .then(function (res) {
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      return res.text();
-    })
-    .then(function (text) { render(parseCsv(text)); })
-    .catch(function (err) {
-      container.innerHTML = '<p class="error">Could not load activity log (' + err.message + ").</p>";
-    });
+  function fetchCsv(path, kind) {
+    return fetch(path, { cache: "no-store" })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.text();
+      })
+      .then(function (text) {
+        return parseCsv(text).map(function (row) {
+          row.kind = kind;
+          return row;
+        });
+      })
+      .catch(function (err) {
+        console.error("Could not load " + path + ":", err);
+        return [];
+      });
+  }
+
+  Promise.all([
+    fetchCsv("replied_posts.csv", "replication"),
+    fetchCsv("retraction_replies.csv", "retraction")
+  ]).then(function (results) {
+    render(results[0].concat(results[1]));
+  }).catch(function (err) {
+    container.innerHTML = '<p class="error">Could not load activity log (' + err.message + ").</p>";
+  });
 })();
 </script>
 

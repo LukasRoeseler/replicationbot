@@ -1,0 +1,54 @@
+name: Replication Bot Reply Backfill (one-off)
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (log matches without actually posting)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  backfill-reply-to-posts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - name: Install Packages
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::bskyr
+
+      # Same script as the regular 15-minute reply-bot.yml, just with a much
+      # wider one-time lookback/limit to catch posts from before that scan
+      # started. Shares the same replied_posts.csv dedup log, so it will
+      # never double-reply to anything the regular scan already caught.
+      - name: Run Reply Bot Script (4-week lookback)
+        env:
+          BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+          BLUESKY_PASSWORD: ${{ secrets.BLUESKY_PASSWORD }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          LOOKBACK_MINUTES: '40320'
+          SEARCH_LIMIT: '1000'
+        run: Rscript reply_bot.R
+
+      - name: Commit updated reply log
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add replied_posts.csv
+          git diff --cached --quiet || git commit -m "Update replied_posts.csv (backfill) [skip ci]"
+          git pull --rebase origin main
+          git push
