@@ -48,9 +48,12 @@ main <- function() {
   already_replied_uris <- replied_log$post_uri
 
   # ---------------------------------------------------------
-  # Search recent posts linking to doi.org. clean = FALSE returns the raw
-  # parsed JSON response (a plain nested list mirroring the AT Protocol
-  # lexicon exactly), so post facets/embeds can be read reliably below.
+  # Search recent posts two ways: posts linking to doi.org (catches proper
+  # links), and posts using topical keywords (catches a bare "10.xxxx/yyyy"
+  # DOI typed with no link at all, which the domain filter alone would never
+  # surface as a candidate). clean = FALSE returns the raw parsed JSON
+  # response (a plain nested list mirroring the AT Protocol lexicon exactly),
+  # so post facets/embeds can be read reliably below.
   #
   # LOOKBACK_MINUTES/SEARCH_LIMIT are overridable via env vars so the same
   # script can run as the regular 15-minute scan (defaults: 20 min / 50
@@ -64,14 +67,14 @@ main <- function() {
   search_limit <- as.integer(Sys.getenv("SEARCH_LIMIT", "50"))
   since <- format(Sys.time() - as.difftime(lookback_minutes, units = "mins"), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
 
-  resp <- tryCatch({
-    bs_search_posts(query = "doi.org", domain = "doi.org", sort = "latest", since = since, limit = search_limit, clean = FALSE)
-  }, error = function(e) {
-    cat("Warning: bs_search_posts() failed:", conditionMessage(e), "\n")
-    NULL
-  })
-
-  candidates <- if (is.null(resp)) list() else flatten_search_posts(resp)
+  candidates <- collect_candidate_posts(
+    list(
+      list(query = "doi.org", domain = "doi.org"),
+      list(query = "replicated OR replication OR reproduced OR reproducibility", domain = NULL)
+    ),
+    since = since,
+    limit = search_limit
+  )
 
   if (length(candidates) == 0) {
     cat("No candidate posts found in this run.\n")

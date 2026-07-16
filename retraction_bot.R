@@ -80,20 +80,23 @@ main <- function() {
   already_replied_uris <- replied_log$post_uri
 
   # ---------------------------------------------------------
-  # Search recent posts linking to doi.org. Runs once a day, so a 25h
-  # lookback (not 24h) gives a cushion against cron jitter without risking
-  # duplicate replies (dedup is keyed on post_uri).
+  # Search recent posts two ways: posts linking to doi.org (catches proper
+  # links), and posts using topical keywords (catches a bare "10.xxxx/yyyy"
+  # DOI typed with no link at all, which the domain filter alone would never
+  # surface as a candidate). Runs once a day, so a 25h lookback (not 24h)
+  # gives a cushion against cron jitter without risking duplicate replies
+  # (dedup is keyed on post_uri).
   # ---------------------------------------------------------
   since <- format(Sys.time() - as.difftime(25, units = "hours"), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
 
-  resp <- tryCatch({
-    bs_search_posts(query = "doi.org", domain = "doi.org", sort = "latest", since = since, limit = 50, clean = FALSE)
-  }, error = function(e) {
-    cat("Warning: bs_search_posts() failed:", conditionMessage(e), "\n")
-    NULL
-  })
-
-  candidates <- if (is.null(resp)) list() else flatten_search_posts(resp)
+  candidates <- collect_candidate_posts(
+    list(
+      list(query = "doi.org", domain = "doi.org"),
+      list(query = "retracted OR retraction OR \"expression of concern\"", domain = NULL)
+    ),
+    since = since,
+    limit = 50
+  )
 
   if (length(candidates) == 0) {
     cat("No candidate posts found in this run.\n")

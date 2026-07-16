@@ -104,14 +104,17 @@ normalize_doi <- function(x) {
   tolower(x)
 }
 
-# 6. Helper function: Extract a raw doi.org URL from a post's plain text.
-# This is a fallback only — Bluesky truncates the *visible* text of any long
-# pasted URL (e.g. "doi.org/10.1207/s153...") and stores the real, full URL
-# separately as a rich-text facet (see extract_dois_from_post() below), so
-# most real posts won't have a usable full DOI in the visible text at all.
+# 6. Helper function: Extract a raw DOI-shaped string from a post's plain
+# text — matches the bare "10.xxxx/yyyy" pattern whether or not it's preceded
+# by a "doi.org/" URL prefix, so both a full doi.org link's visible text AND
+# a plain typed-out DOI with no link at all (e.g. "Has this study been
+# retracted? 10.1006/obhd.1998.2802") get picked up. This is a fallback in
+# extract_dois_from_post() below — Bluesky also truncates the *visible* text
+# of any long pasted URL (e.g. "doi.org/10.1207/s153..."), storing the real,
+# full URL separately as a rich-text facet, which is checked first.
 extract_doi_from_text <- function(text) {
   if (length(text) == 0 || is.na(text) || text == "") return(character())
-  m <- regmatches(text, gregexpr("(?i)doi\\.org/(10\\.[0-9]{4,9}/[^\\s\"'<>\\)\\],]+)", text, perl = TRUE))[[1]]
+  m <- regmatches(text, gregexpr("(?i)(?:doi\\.org/)?(10\\.[0-9]{4,9}/[^\\s\"'<>\\)\\],]+)", text, perl = TRUE))[[1]]
   m
 }
 
@@ -157,6 +160,36 @@ flatten_search_posts <- function(resp) {
   posts <- list()
   for (page in resp) {
     if (!is.null(page$posts)) posts <- c(posts, page$posts)
+  }
+  posts
+}
+
+# 9. Helper function: Run several bs_search_posts() queries and merge their
+# results into one deduplicated (by post uri) candidate list. `queries` is a
+# list of list(query = ..., domain = NULL) specs. A domain-filtered search
+# for "doi.org" only finds posts with an actual link to that domain; a
+# second, domain-less keyword search (e.g. "retracted OR retraction") also
+# catches posts that just type out a bare DOI with no link at all, at the
+# cost of a noisier candidate pool — harmless here, since candidates still
+# have to match a known DOI before anything gets replied to.
+collect_candidate_posts <- function(queries, since, limit) {
+  posts <- list()
+  seen_uris <- character()
+  for (q in queries) {
+    resp <- tryCatch({
+      bs_search_posts(query = q$query, domain = q$domain, sort = "latest", since = since, limit = limit, clean = FALSE)
+    }, error = function(e) {
+      cat("Warning: bs_search_posts() failed for query '", q$query, "': ", conditionMessage(e), "\n", sep = "")
+      NULL
+    })
+    if (is.null(resp)) next
+    for (post in flatten_search_posts(resp)) {
+      uri <- post$uri
+      if (!is.null(uri) && !(uri %in% seen_uris)) {
+        seen_uris <- c(seen_uris, uri)
+        posts[[length(posts) + 1]] <- post
+      }
+    }
   }
   posts
 }
