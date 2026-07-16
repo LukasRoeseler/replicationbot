@@ -1,12 +1,12 @@
-# Shared helper functions used by bot.R (daily broadcast), reply_bot.R and
-# retraction_bot.R (reactive replies), so their wording and scanning logic
-# stay consistent.
+# Shared helper functions used by bot.R (daily broadcast) and reply_bot.R
+# (reactive replies about both replications and retractions), so their
+# wording and scanning logic stay consistent.
 
-# Trial period: the reactive-reply features (reply_bot.R, retraction_bot.R)
-# are being evaluated for one week before deciding whether to keep them
-# running. After this date, those scripts exit without searching or
-# replying. Remove the checks in those files (and this constant) once the
-# trial is over and the features are confirmed to stay.
+# Trial period: the reactive-reply feature (reply_bot.R) is being evaluated
+# for one week before deciding whether to keep it running. After this date,
+# the script exits without searching or replying. Remove the check in that
+# file (and this constant) once the trial is over and the feature is
+# confirmed to stay.
 EVALUATION_END_DATE <- as.Date("2026-07-22")
 
 # 1. Helper function: Convert JSON authors to a short citation
@@ -194,13 +194,15 @@ collect_candidate_posts <- function(queries, since, limit) {
   posts
 }
 
-# 9. Helper functions: Read/write a dedup log of posts already replied to.
-# `cols` lets callers with a richer log schema (e.g. retraction_bot.R's extra
-# notice_type column) get the right empty-frame shape when the file doesn't
-# exist yet.
-load_replied_log <- function(path, cols = c("post_uri", "doi", "replied_at")) {
+# 10. Helper functions: Read/write the dedup log of posts already replied to
+# (one shared log for both replication and retraction replies, distinguished
+# by the `kind`/`notice_type` columns; `reply_uri` is the bot's own reply
+# post, used by index.html to fetch its thread directly rather than hunting
+# for the bot in the original post's replies list). `cols` gives the right
+# empty-frame shape when the file doesn't exist yet.
+load_replied_log <- function(path, cols = c("post_uri", "reply_uri", "doi", "kind", "notice_type", "replied_at")) {
   if (file.exists(path)) {
-    read.csv(path, stringsAsFactors = FALSE, colClasses = "character")
+    read.csv(path, stringsAsFactors = FALSE, colClasses = "character", na.strings = "")
   } else {
     empty <- as.data.frame(matrix(character(), nrow = 0, ncol = length(cols)))
     names(empty) <- cols
@@ -209,5 +211,5 @@ load_replied_log <- function(path, cols = c("post_uri", "doi", "replied_at")) {
 }
 
 save_replied_log <- function(log, path) {
-  write.csv(log, path, row.names = FALSE)
+  write.csv(log, path, row.names = FALSE, na = "")
 }

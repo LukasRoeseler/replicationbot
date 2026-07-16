@@ -1,8 +1,8 @@
-name: Replication Bot Reply Scanner
+name: Reply Scanner (Replications & Retractions)
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
     inputs:
       dry_run:

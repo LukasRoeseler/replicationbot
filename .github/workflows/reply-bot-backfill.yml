@@ -1,4 +1,4 @@
-name: Replication Bot Reply Backfill (one-off)
+name: Reply Backfill (one-off)
 
 on:
   workflow_dispatch:
@@ -31,10 +31,11 @@ jobs:
           packages: |
             any::bskyr
 
-      # Same script as the regular 15-minute reply-bot.yml, just with a much
-      # wider one-time lookback/limit to catch posts from before that scan
-      # started. Shares the same replied_posts.csv dedup log, so it will
-      # never double-reply to anything the regular scan already caught.
+      # Same script as the regular hourly reply-bot.yml (checks both
+      # replications and retractions), just with a much wider one-time
+      # lookback/limit to catch posts from before that scan started. Shares
+      # the same replied_posts.csv dedup log, so it will never double-reply
+      # to anything the regular scan already caught.
       - name: Run Reply Bot Script (4-week lookback)
         env:
           BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}

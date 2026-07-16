@@ -220,7 +220,7 @@
   <footer>
     <p>Data source: FORRT Library of Replication Attempts (FLoRA), CC-BY license. See the
       <a href="https://github.com/forrtproject/FReD-data/blob/main/output/citation.txt" target="_blank" rel="noopener">recommended citation</a>.</p>
-    <p>This page reads <code>replied_posts.csv</code> and <code>retraction_replies.csv</code> from this repository, then loads each conversation live from Bluesky's public API.</p>
+    <p>This page reads <code>replied_posts.csv</code> from this repository, then loads each conversation live from Bluesky's public API.</p>
   </footer>
 
 </main>
@@ -228,7 +228,6 @@
 <script>
 (function () {
   const ACTIVITY_SINCE = new Date("2026-07-15T00:00:00Z");
-  const BOT_HANDLE = "replicationbot.bsky.social";
   const container = document.getElementById("activity-container");
   const feedSub = document.getElementById("feed-sub");
 
@@ -367,18 +366,14 @@
     );
   }
 
-  function findBotReply(thread) {
-    const replies = (thread && thread.replies) || [];
-    for (let i = 0; i < replies.length; i++) {
-      const r = replies[i];
-      if (r && r.post && r.post.author && r.post.author.handle === BOT_HANDLE) return r;
-    }
-    return null;
-  }
-
-  function fetchThread(postUri) {
+  function fetchReplyThread(replyUri) {
+    // depth=1: replies to the bot's own reply. parentHeight=1: the original
+    // post the bot replied to. Fetching by the bot's OWN reply uri (rather
+    // than the original post's uri and hunting for the bot in its replies)
+    // avoids depending on Bluesky's public API reliably listing a fresh
+    // reply in the original post's replies list, which it doesn't always do.
     const url = "https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=" +
-      encodeURIComponent(postUri) + "&depth=2";
+      encodeURIComponent(replyUri) + "&depth=1&parentHeight=1";
     return fetch(url).then(function (res) {
       if (!res.ok) throw new Error("HTTP " + res.status);
       return res.json();
@@ -396,25 +391,25 @@
         (rootUrl ? '<a href="' + rootUrl + '" target="_blank" rel="noopener">View full conversation &rarr;</a>' : "") +
       "</div>";
 
-    return fetchThread(row.post_uri).then(function (thread) {
+    if (!row.reply_uri) {
+      return Promise.resolve('<article class="thread-entry"><p class="thread-error">This conversation isn’t available yet.</p>' + footerHtml + "</article>");
+    }
+
+    return fetchReplyThread(row.reply_uri).then(function (thread) {
       if (!thread || !thread.post) {
-        return '<article class="thread-entry"><p class="thread-error">Original post is no longer available.</p>' + footerHtml + "</article>";
+        return '<article class="thread-entry"><p class="thread-error">The reply is no longer available.</p>' + footerHtml + "</article>";
       }
 
-      const rows = [renderPostRow(thread.post)];
-      const botReplyNode = findBotReply(thread);
-
-      if (botReplyNode) {
-        rows.push(renderPostRow(botReplyNode.post));
-        const subReplies = botReplyNode.replies || [];
-        subReplies.forEach(function (sr) {
-          if (sr && sr.post) rows.push(renderPostRow(sr.post));
-        });
+      const rows = [];
+      if (thread.parent && thread.parent.post) {
+        rows.push(renderPostRow(thread.parent.post));
       }
+      rows.push(renderPostRow(thread.post));
+      (thread.replies || []).forEach(function (sr) {
+        if (sr && sr.post) rows.push(renderPostRow(sr.post));
+      });
 
-      const errorHtml = botReplyNode ? "" : '<p class="thread-error">Could not find the bot’s reply in this thread (it may have been removed).</p>';
-
-      return '<article class="thread-entry">' + rows.join("") + errorHtml + footerHtml + "</article>";
+      return '<article class="thread-entry">' + rows.join("") + footerHtml + "</article>";
     }).catch(function (err) {
       return '<article class="thread-entry"><p class="thread-error">Could not load this conversation (' + escapeHtml(err.message) + ").</p>" + footerHtml + "</article>";
     });
@@ -441,32 +436,15 @@
     });
   }
 
-  function fetchCsv(path, kind) {
-    return fetch(path, { cache: "no-store" })
-      .then(function (res) {
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.text();
-      })
-      .then(function (text) {
-        return parseCsv(text).map(function (row) {
-          row.kind = kind;
-          return row;
-        });
-      })
-      .catch(function (err) {
-        console.error("Could not load " + path + ":", err);
-        return [];
-      });
-  }
-
-  Promise.all([
-    fetchCsv("replied_posts.csv", "replication"),
-    fetchCsv("retraction_replies.csv", "retraction")
-  ]).then(function (results) {
-    render(results[0].concat(results[1]));
-  }).catch(function (err) {
-    container.innerHTML = '<p class="error">Could not load activity log (' + err.message + ").</p>";
-  });
+  fetch("replied_posts.csv", { cache: "no-store" })
+    .then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.text();
+    })
+    .then(function (text) { render(parseCsv(text)); })
+    .catch(function (err) {
+      container.innerHTML = '<p class="error">Could not load activity log (' + err.message + ").</p>";
+    });
 })();
 </script>
 
