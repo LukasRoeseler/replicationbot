@@ -3,11 +3,12 @@
 # wording and scanning logic stay consistent.
 
 # Trial period: the reactive-reply feature (reply_bot.R) is being evaluated
-# for one week before deciding whether to keep it running. After this date,
-# the script exits without searching or replying. Remove the check in that
-# file (and this constant) once the trial is over and the feature is
-# confirmed to stay.
-EVALUATION_END_DATE <- as.Date("2026-07-22")
+# before deciding whether to keep it running. After this date, the script
+# exits without searching or replying. Extended once already (from
+# 2026-07-22 to 2026-08-05) for another two weeks of regular runs. Remove the
+# check in that file (and this constant) once the trial is over and the
+# feature is confirmed to stay.
+EVALUATION_END_DATE <- as.Date("2026-08-05")
 
 # 1. Helper function: Convert JSON authors to a short citation
 get_short_citation <- function(author_json, year) {

@@ -34,7 +34,24 @@ notice_label <- function(nature) {
   NA_character_
 }
 
-# 4. Main process
+# 4. Helper function: In dry-run mode, nothing gets posted or logged to
+# replied_posts.csv — write what this run *would* have replied to instead,
+# overwriting any previous preview, so it can be reviewed (e.g. rendered as a
+# report) before deciding whether to actually run it live.
+write_dry_run_preview <- function(matches) {
+  cols <- c("post_uri", "author_handle", "author_display_name", "post_text", "doi", "kind", "notice_type", "reply_text")
+  preview_df <- if (length(matches) > 0) {
+    do.call(rbind, matches)
+  } else {
+    empty <- as.data.frame(matrix(character(), nrow = 0, ncol = length(cols)))
+    names(empty) <- cols
+    empty
+  }
+  write.csv(preview_df, "dry_run_preview.csv", row.names = FALSE, na = "")
+  cat("Wrote", nrow(preview_df), "dry-run match(es) to dry_run_preview.csv\n")
+}
+
+# 5. Main process
 main <- function() {
   if (Sys.Date() >= EVALUATION_END_DATE) {
     cat("Evaluation period ended on", format(EVALUATION_END_DATE), "- reply bot is paused.\n")
@@ -103,7 +120,7 @@ main <- function() {
   # LOOKBACK_MINUTES/SEARCH_LIMIT are overridable via env vars so the same
   # script can run as the regular hourly scan (defaults: 70 min / 50 posts —
   # a 10-minute cushion over the hourly cadence) or as a one-off wider
-  # backfill (e.g. 4 weeks / 1000 posts) without duplicating this logic.
+  # backfill (e.g. 12 months / 2000 posts) without duplicating this logic.
   # Overlap in the lookback window is harmless: dedup is keyed on post_uri.
   # ---------------------------------------------------------
   lookback_minutes <- as.numeric(Sys.getenv("LOOKBACK_MINUTES", "70"))
@@ -122,6 +139,7 @@ main <- function() {
 
   if (length(candidates) == 0) {
     cat("No candidate posts found in this run.\n")
+    if (dry_run) write_dry_run_preview(list())
     return(invisible(NULL))
   }
 
@@ -131,6 +149,7 @@ main <- function() {
   # known DOI (replication first, then retraction) and reply
   # ---------------------------------------------------------
   new_log_rows <- list()
+  dry_run_matches <- list()
 
   for (post in candidates) {
     post_uri <- post$uri
@@ -211,6 +230,18 @@ main <- function() {
 
     if (dry_run) {
       cat("[DRY RUN] Would reply:", reply_text, "\n\n")
+      author_display_name <- post$author$displayName
+      dry_run_matches[[length(dry_run_matches) + 1]] <- data.frame(
+        post_uri = post_uri,
+        author_handle = if (is.null(author_handle)) NA_character_ else author_handle,
+        author_display_name = if (is.null(author_display_name)) NA_character_ else author_display_name,
+        post_text = if (is.null(post_text)) NA_character_ else post_text,
+        doi = doi,
+        kind = kind,
+        notice_type = notice_type,
+        reply_text = reply_text,
+        stringsAsFactors = FALSE
+      )
       next
     }
 
@@ -252,6 +283,8 @@ main <- function() {
   } else {
     cat("No new replies logged in this run.\n")
   }
+
+  if (dry_run) write_dry_run_preview(dry_run_matches)
 }
 
 main()

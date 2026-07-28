@@ -36,20 +36,20 @@ jobs:
       # lookback/limit to catch posts from before that scan started. Shares
       # the same replied_posts.csv dedup log, so it will never double-reply
       # to anything the regular scan already caught.
-      - name: Run Reply Bot Script (4-week lookback)
+      - name: Run Reply Bot Script (12-month lookback)
         env:
           BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
           BLUESKY_PASSWORD: ${{ secrets.BLUESKY_PASSWORD }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
-          LOOKBACK_MINUTES: '40320'
-          SEARCH_LIMIT: '1000'
+          LOOKBACK_MINUTES: '525600'
+          SEARCH_LIMIT: '2000'
         run: Rscript reply_bot.R
 
       - name: Commit updated reply log
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add replied_posts.csv
-          git diff --cached --quiet || git commit -m "Update replied_posts.csv (backfill) [skip ci]"
+          git add replied_posts.csv dry_run_preview.csv
+          git diff --cached --quiet || git commit -m "Update replied_posts.csv / dry_run_preview.csv (backfill) [skip ci]"
           git pull --rebase origin main
           git push
