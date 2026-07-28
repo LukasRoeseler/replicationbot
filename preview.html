@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Replication Bot — Dry-Run Preview</title>
+<meta name="description" content="Preview of posts Replication Bot would reply to and the exact reply text, from the most recent dry run — nothing here has been posted.">
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="apple-touch-icon" href="logo.png">
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #0f1419;
+    --muted: #57606a;
+    --border: #eaedf0;
+    --accent: #1185fe;
+    --hover-bg: #f7f9fa;
+    --warn-bg: #fff8e6;
+    --warn-border: #f0c95f;
+    --warn-fg: #7a5b00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --fg: #e7e9ea;
+      --muted: #8b98a5;
+      --border: #22282e;
+      --accent: #48a7ff;
+      --hover-bg: #0c0f11;
+      --warn-bg: #2a2308;
+      --warn-border: #6b5510;
+      --warn-fg: #f0c95f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #000000; --fg: #e7e9ea; --muted: #8b98a5; --border: #22282e;
+    --accent: #48a7ff; --hover-bg: #0c0f11;
+    --warn-bg: #2a2308; --warn-border: #6b5510; --warn-fg: #f0c95f;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --fg: #0f1419; --muted: #57606a; --border: #eaedf0;
+    --accent: #1185fe; --hover-bg: #f7f9fa;
+    --warn-bg: #fff8e6; --warn-border: #f0c95f; --warn-fg: #7a5b00;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.4;
+  }
+  main {
+    max-width: 600px;
+    margin: 0 auto;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    min-height: 100vh;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .page-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.25rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .page-header img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .page-header h1 { font-size: 1.1rem; margin: 0 0 0.15rem; }
+  .back-link { font-size: 0.85rem; }
+
+  .warn-banner {
+    margin: 1rem;
+    padding: 0.85rem 1rem;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    color: var(--warn-fg);
+    border-radius: 10px;
+    font-size: 0.88rem;
+  }
+
+  .feed-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .feed-header h2 { font-size: 1rem; margin: 0; }
+  .feed-sub { color: var(--muted); font-size: 0.82rem; }
+
+  .preview-entry {
+    padding: 0.9rem 1rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .preview-entry .kind-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.82rem;
+  }
+  .kind { font-weight: 600; white-space: nowrap; }
+  .kind-replication { color: var(--accent); }
+  .kind-retraction { color: #e0245e; }
+  .kind-concern { color: #d97a1f; }
+  .doi {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  .post-block {
+    border-radius: 10px;
+    padding: 0.7rem 0.85rem;
+    margin-bottom: 0.5rem;
+  }
+  .post-block.original { background: var(--hover-bg); }
+  .post-block.proposed { border: 1px dashed var(--accent); }
+  .post-block .label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    margin-bottom: 0.25rem;
+  }
+  .post-block .name { font-weight: 700; }
+  .post-block .handle { color: var(--muted); font-size: 0.88rem; }
+  .post-block .text {
+    margin-top: 0.25rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 0.92rem;
+  }
+  .post-link { font-size: 0.8rem; margin-top: 0.4rem; display: inline-block; }
+
+  .empty, .error {
+    color: var(--muted);
+    font-size: 0.9rem;
+    padding: 1rem;
+  }
+  .error { color: #c0392b; }
+
+  footer {
+    padding: 1rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  footer p { margin: 0.3rem 0; }
+</style>
+</head>
+<body>
+<main>
+
+  <div class="page-header">
+    <img src="logo.png" alt="Replication Bot avatar">
+    <div>
+      <h1>Dry-run preview</h1>
+      <a class="back-link" href="index.html">&larr; Back to activity</a>
+    </div>
+  </div>
+
+  <div class="warn-banner">
+    <strong>Nothing here has been posted.</strong> This shows what the bot would have replied, from its most recent dry run. Re-run a dry run to refresh this list.
+  </div>
+
+  <div class="feed-header">
+    <h2>Proposed replies</h2>
+    <span class="feed-sub" id="feed-sub">Loading…</span>
+  </div>
+  <div id="preview-container">
+    <p class="empty">Loading…</p>
+  </div>
+
+  <footer>
+    <p>Reads <code>dry_run_preview.csv</code> directly from this repository — overwritten fresh every time any workflow runs with <code>dry_run</code> checked.</p>
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  const container = document.getElementById("preview-container");
+  const feedSub = document.getElementById("feed-sub");
+
+  // A single-pass parser (not split-into-lines-first) is required because
+  // quoted fields here routinely contain embedded newlines (multi-line post
+  // text, reply text with a blank-line break before the link) - splitting
+  // on newlines before parsing quotes would break those rows apart.
+  function parseCsv(text) {
+    const rows = [];
+    let row = [];
+    let field = "";
+    let inQuotes = false;
+    let i = 0;
+    while (i < text.length) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"' && text[i + 1] === '"') { field += '"'; i += 2; continue; }
+        if (c === '"') { inQuotes = false; i++; continue; }
+        field += c; i++; continue;
+      }
+      if (c === '"') { inQuotes = true; i++; continue; }
+      if (c === ",") { row.push(field); field = ""; i++; continue; }
+      if (c === "\r") { i++; continue; }
+      if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
+      field += c; i++;
+    }
+    if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+
+    const nonEmpty = rows.filter(function (r) { return !(r.length === 1 && r[0].trim() === ""); });
+    if (nonEmpty.length === 0) return [];
+    const header = nonEmpty[0];
+    return nonEmpty.slice(1).map(function (r) {
+      const obj = {};
+      header.forEach(function (key, idx) { obj[key.trim()] = (r[idx] || "").trim(); });
+      return obj;
+    });
+  }
+
+  function escapeHtml(s) {
+    return (s || "").replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function atUriToBskyUrl(uri) {
+    const m = /^at:\/\/([^/]+)\/app\.bsky\.feed\.post\/([^/]+)$/.exec(uri || "");
+    if (!m) return null;
+    return "https://bsky.app/profile/" + m[1] + "/post/" + m[2];
+  }
+
+  function floraUrl(doi) {
+    return "https://forrt.org/flora-replication-atlas/?dois=" + encodeURIComponent(doi);
+  }
+
+  function doiOrgUrl(doi) {
+    return "https://doi.org/" + doi;
+  }
+
+  function subjectLabel(row) {
+    if (row.kind === "retraction") {
+      return row.notice_type === "Expression of concern" ? "Editorial concern" : "Retraction";
+    }
+    return "Replication";
+  }
+
+  function subjectKindClass(row) {
+    if (row.kind === "retraction") {
+      return row.notice_type === "Expression of concern" ? "kind-concern" : "kind-retraction";
+    }
+    return "kind-replication";
+  }
+
+  function subjectUrl(row) {
+    return row.kind === "retraction" ? doiOrgUrl(row.doi) : floraUrl(row.doi);
+  }
+
+  function renderEntry(row) {
+    const postUrl = atUriToBskyUrl(row.post_uri);
+    return (
+      '<article class="preview-entry">' +
+        '<div class="kind-row">' +
+          '<span class="kind ' + subjectKindClass(row) + '">' + subjectLabel(row) + "</span>" +
+          (row.doi ? '<a class="doi" href="' + subjectUrl(row) + '" target="_blank" rel="noopener">' + escapeHtml(row.doi) + "</a>" : "") +
+        "</div>" +
+        '<div class="post-block original">' +
+          '<div class="label">Their post</div>' +
+          '<div class="name">' + escapeHtml(row.author_display_name || row.author_handle || "unknown") + "</div>" +
+          '<div class="handle">@' + escapeHtml(row.author_handle || "unknown") + "</div>" +
+          '<div class="text">' + escapeHtml(row.post_text) + "</div>" +
+          (postUrl ? '<a class="post-link" href="' + postUrl + '" target="_blank" rel="noopener">View on Bluesky</a>' : "") +
+        "</div>" +
+        '<div class="post-block proposed">' +
+          '<div class="label">Proposed reply (not posted)</div>' +
+          '<div class="text">' + escapeHtml(row.reply_text) + "</div>" +
+        "</div>" +
+      "</article>"
+    );
+  }
+
+  fetch("dry_run_preview.csv", { cache: "no-store" })
+    .then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.text();
+    })
+    .then(function (text) {
+      const rows = parseCsv(text).filter(function (r) { return r.post_uri; });
+      feedSub.textContent = rows.length + (rows.length === 1 ? " proposed reply" : " proposed replies");
+      container.innerHTML = rows.length === 0
+        ? '<p class="empty">No matches in the most recent dry run.</p>'
+        : rows.map(renderEntry).join("");
+    })
+    .catch(function (err) {
+      container.innerHTML = '<p class="error">Could not load preview (' + escapeHtml(err.message) + ").</p>";
+    });
+})();
+</script>
+
+</body>
+</html>

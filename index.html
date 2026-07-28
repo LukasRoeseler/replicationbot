@@ -206,6 +206,7 @@
         <a href="https://github.com/LukasRoeseler/replicationbot" target="_blank" rel="noopener">Source</a>
         <a href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener">FLoRA Atlas</a>
         <a href="stats.html">Stats</a>
+        <a href="preview.html">Dry-run preview</a>
       </div>
     </div>
   </div>
@@ -234,36 +235,39 @@
 
   const AVATAR_COLORS = ["#1185fe", "#7856ff", "#e0245e", "#17bf63", "#f45d22", "#794bc4"];
 
+  // A single-pass parser (not split-into-lines-first) is required because
+  // quoted fields can contain embedded newlines (e.g. multi-line post text
+  // or reply text) - splitting on newlines before parsing quotes would
+  // break those rows apart.
   function parseCsv(text) {
-    const lines = text.split(/\r\n|\n|\r/).filter(function (l) { return l.trim().length > 0; });
-    if (lines.length === 0) return [];
-    const rows = lines.map(splitCsvLine);
-    const header = rows[0];
-    return rows.slice(1).map(function (row) {
+    const rows = [];
+    let row = [];
+    let field = "";
+    let inQuotes = false;
+    let i = 0;
+    while (i < text.length) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"' && text[i + 1] === '"') { field += '"'; i += 2; continue; }
+        if (c === '"') { inQuotes = false; i++; continue; }
+        field += c; i++; continue;
+      }
+      if (c === '"') { inQuotes = true; i++; continue; }
+      if (c === ",") { row.push(field); field = ""; i++; continue; }
+      if (c === "\r") { i++; continue; }
+      if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
+      field += c; i++;
+    }
+    if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+
+    const nonEmpty = rows.filter(function (r) { return !(r.length === 1 && r[0].trim() === ""); });
+    if (nonEmpty.length === 0) return [];
+    const header = nonEmpty[0];
+    return nonEmpty.slice(1).map(function (r) {
       const obj = {};
-      header.forEach(function (key, i) { obj[key.trim()] = (row[i] || "").trim(); });
+      header.forEach(function (key, idx) { obj[key.trim()] = (r[idx] || "").trim(); });
       return obj;
     });
-  }
-
-  function splitCsvLine(line) {
-    const out = [];
-    let cur = "";
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const c = line[i];
-      if (inQuotes) {
-        if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
-        else if (c === '"') { inQuotes = false; }
-        else { cur += c; }
-      } else {
-        if (c === '"') inQuotes = true;
-        else if (c === ",") { out.push(cur); cur = ""; }
-        else cur += c;
-      }
-    }
-    out.push(cur);
-    return out;
   }
 
   function escapeHtml(s) {
