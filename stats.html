@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Replication Bot — Stats</title>
+<meta name="description" content="Scan statistics for Replication Bot: how many posts were scanned, matched, and replied to.">
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="apple-touch-icon" href="logo.png">
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #0f1419;
+    --muted: #57606a;
+    --border: #eaedf0;
+    --accent: #1185fe;
+    --hover-bg: #f7f9fa;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --fg: #e7e9ea;
+      --muted: #8b98a5;
+      --border: #22282e;
+      --accent: #48a7ff;
+      --hover-bg: #0c0f11;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #000000; --fg: #e7e9ea; --muted: #8b98a5; --border: #22282e;
+    --accent: #48a7ff; --hover-bg: #0c0f11;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --fg: #0f1419; --muted: #57606a; --border: #eaedf0;
+    --accent: #1185fe; --hover-bg: #f7f9fa;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.4;
+  }
+  main {
+    max-width: 600px;
+    margin: 0 auto;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    min-height: 100vh;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .page-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.25rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .page-header img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .page-header h1 { font-size: 1.1rem; margin: 0 0 0.15rem; }
+  .back-link { font-size: 0.85rem; }
+
+  .stats-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .stat-tile { flex: 1 1 130px; }
+  .stat-tile .n { font-size: 1.6rem; font-weight: 800; color: var(--accent); }
+  .stat-tile .l {
+    font-size: 0.76rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .feed-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .feed-header h2 { font-size: 1rem; margin: 0; }
+  .feed-sub { color: var(--muted); font-size: 0.82rem; }
+
+  .table-scroll { overflow-x: auto; }
+  table.run-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; white-space: nowrap; }
+  table.run-table th, table.run-table td {
+    text-align: left;
+    padding: 0.55rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  table.run-table th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  table.run-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .dry-badge {
+    font-size: 0.72rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    background: var(--hover-bg);
+    color: var(--muted);
+  }
+
+  .empty, .error {
+    color: var(--muted);
+    font-size: 0.9rem;
+    padding: 1rem;
+  }
+  .error { color: #c0392b; }
+
+  footer {
+    padding: 1rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  footer p { margin: 0.3rem 0; }
+</style>
+</head>
+<body>
+<main>
+
+  <div class="page-header">
+    <img src="logo.png" alt="Replication Bot avatar">
+    <div>
+      <h1>Scan statistics</h1>
+      <a class="back-link" href="index.html">&larr; Back to activity</a>
+    </div>
+  </div>
+
+  <div class="stats-grid" id="stats-grid">
+    <p class="empty">Loading…</p>
+  </div>
+
+  <div class="feed-header">
+    <h2>Run history</h2>
+    <span class="feed-sub" id="run-count">Loading…</span>
+  </div>
+  <div class="table-scroll">
+    <table class="run-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Mode</th>
+          <th class="num">Scanned</th>
+          <th class="num">Replication matches</th>
+          <th class="num">Retraction matches</th>
+          <th class="num">Replied</th>
+        </tr>
+      </thead>
+      <tbody id="run-table-body">
+        <tr><td colspan="6" class="empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    <p>Reads <code>scan_log.csv</code> (one row per bot run — how many posts were scanned, matched, and replied to) and <code>replied_posts.csv</code> (all-time reply count) directly from this repository.</p>
+    <p>"Scanned" counts candidate posts examined each run (linking to doi.org, or using topical keywords like "replication"/"retracted") — most are examined and found not to match any known study, which is expected.</p>
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  function parseCsv(text) {
+    const lines = text.split(/\r\n|\n|\r/).filter(function (l) { return l.trim().length > 0; });
+    if (lines.length === 0) return [];
+    const rows = lines.map(splitCsvLine);
+    const header = rows[0];
+    return rows.slice(1).map(function (row) {
+      const obj = {};
+      header.forEach(function (key, i) { obj[key.trim()] = (row[i] || "").trim(); });
+      return obj;
+    });
+  }
+
+  function splitCsvLine(line) {
+    const out = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (inQuotes) {
+        if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+        else if (c === '"') { inQuotes = false; }
+        else { cur += c; }
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ",") { out.push(cur); cur = ""; }
+        else cur += c;
+      }
+    }
+    out.push(cur);
+    return out;
+  }
+
+  function escapeHtml(s) {
+    return (s || "").replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function fullDate(iso) {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, {
+      year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+    });
+  }
+
+  function timeAgo(iso) {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    const diffSec = Math.round((Date.now() - d.getTime()) / 1000);
+    if (diffSec < 60) return "just now";
+    const diffMin = Math.round(diffSec / 60);
+    if (diffMin < 60) return diffMin + "m ago";
+    const diffHr = Math.round(diffMin / 60);
+    if (diffHr < 24) return diffHr + "h ago";
+    const diffDay = Math.round(diffHr / 24);
+    if (diffDay < 365) return diffDay + "d ago";
+    return Math.round(diffDay / 365) + "y ago";
+  }
+
+  function num(x) {
+    const n = parseInt(x, 10);
+    return isNaN(n) ? 0 : n;
+  }
+
+  function tile(n, label) {
+    return '<div class="stat-tile"><div class="n">' + n + '</div><div class="l">' + escapeHtml(label) + "</div></div>";
+  }
+
+  const statsGrid = document.getElementById("stats-grid");
+  const runCount = document.getElementById("run-count");
+  const runTableBody = document.getElementById("run-table-body");
+
+  function render(scanRows, totalReplies) {
+    const totalScanned = scanRows.reduce(function (sum, r) { return sum + num(r.candidates_scanned); }, 0);
+    const totalReplicationMatches = scanRows.reduce(function (sum, r) { return sum + num(r.replication_matches); }, 0);
+    const totalRetractionMatches = scanRows.reduce(function (sum, r) { return sum + num(r.retraction_matches); }, 0);
+
+    statsGrid.innerHTML =
+      tile(totalReplies, "Replies posted (all-time)") +
+      tile(totalScanned, "Posts scanned") +
+      tile(totalReplicationMatches, "Replication matches") +
+      tile(totalRetractionMatches, "Retraction matches") +
+      tile(scanRows.length, "Runs recorded");
+
+    runCount.textContent = scanRows.length + (scanRows.length === 1 ? " run" : " runs");
+
+    if (scanRows.length === 0) {
+      runTableBody.innerHTML = '<tr><td colspan="6" class="empty">No scan runs recorded yet.</td></tr>';
+      return;
+    }
+
+    const sorted = scanRows.slice().sort(function (a, b) { return new Date(b.run_at) - new Date(a.run_at); });
+    runTableBody.innerHTML = sorted.map(function (r) {
+      const modeHtml = r.dry_run === "true" ? '<span class="dry-badge">dry run</span>' : "live";
+      return (
+        '<tr>' +
+          '<td title="' + escapeHtml(fullDate(r.run_at)) + '">' + escapeHtml(timeAgo(r.run_at)) + "</td>" +
+          "<td>" + modeHtml + "</td>" +
+          '<td class="num">' + num(r.candidates_scanned) + "</td>" +
+          '<td class="num">' + num(r.replication_matches) + "</td>" +
+          '<td class="num">' + num(r.retraction_matches) + "</td>" +
+          '<td class="num">' + num(r.replies_posted) + "</td>" +
+        "</tr>"
+      );
+    }).join("");
+  }
+
+  function fetchCsv(path) {
+    return fetch(path, { cache: "no-store" }).then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status + " (" + path + ")");
+      return res.text();
+    }).then(parseCsv);
+  }
+
+  Promise.all([fetchCsv("scan_log.csv"), fetchCsv("replied_posts.csv")])
+    .then(function (results) { render(results[0], results[1].length); })
+    .catch(function (err) {
+      statsGrid.innerHTML = '<p class="error">Could not load statistics (' + escapeHtml(err.message) + ").</p>";
+      runTableBody.innerHTML = "";
+    });
+})();
+</script>
+
+</body>
+</html>

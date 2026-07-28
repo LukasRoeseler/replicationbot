@@ -195,13 +195,15 @@ collect_candidate_posts <- function(queries, since, limit) {
   posts
 }
 
-# 10. Helper functions: Read/write the dedup log of posts already replied to
-# (one shared log for both replication and retraction replies, distinguished
-# by the `kind`/`notice_type` columns; `reply_uri` is the bot's own reply
-# post, used by index.html to fetch its thread directly rather than hunting
-# for the bot in the original post's replies list). `cols` gives the right
-# empty-frame shape when the file doesn't exist yet.
-load_replied_log <- function(path, cols = c("post_uri", "reply_uri", "doi", "kind", "notice_type", "replied_at")) {
+# 10. Helper functions: Read/write an accumulating CSV log, appending a row
+# per event. Used both for the dedup log of posts already replied to (one
+# shared log for both replication and retraction replies, distinguished by
+# the `kind`/`notice_type` columns; `reply_uri` is the bot's own reply post,
+# used by index.html to fetch its thread directly rather than hunting for
+# the bot in the original post's replies list) and for the per-run scan
+# statistics log. `cols` gives the right empty-frame shape when the file
+# doesn't exist yet.
+load_log <- function(path, cols = c("post_uri", "reply_uri", "doi", "kind", "notice_type", "replied_at")) {
   if (file.exists(path)) {
     read.csv(path, stringsAsFactors = FALSE, colClasses = "character", na.strings = "")
   } else {
@@ -211,6 +213,6 @@ load_replied_log <- function(path, cols = c("post_uri", "reply_uri", "doi", "kin
   }
 }
 
-save_replied_log <- function(log, path) {
+save_log <- function(log, path) {
   write.csv(log, path, row.names = FALSE, na = "")
 }

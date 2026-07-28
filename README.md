@@ -19,6 +19,8 @@ A separate, manually-triggered workflow, **`reply-bot-backfill.yml`**, runs the 
 
 Both workflows accept a `dry_run` input. In dry-run mode nothing is posted or added to `replied_posts.csv` — instead every match (post, DOI, kind, and the exact reply text that would have been sent) is written to `dry_run_preview.csv`, overwriting any previous preview, so a run's results can be reviewed before deciding to run it live.
 
+Every run (live or dry) appends one row to `scan_log.csv` (`run_at`, `dry_run`, `candidates_scanned`, `replication_matches`, `retraction_matches`, `replies_posted`). The [stats page](stats.html) reads it to show all-time totals (posts scanned, matches by kind, replies posted) and a per-run history table.
+
 **Trial period**: `reply_bot.R` is running a trial and stops replying automatically after 2026-08-05 (`EVALUATION_END_DATE`, defined in `helpers.R`; extended once already from an initial 2026-07-22 end date for another two weeks of regular runs), pending a decision on whether to keep it enabled. Remove that check (and the constant) once confirmed to stay — and update the matching note on the GitHub Pages site (`index.html`).
 
 Known limitations:

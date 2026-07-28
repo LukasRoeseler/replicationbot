@@ -1,11 +1,31 @@
 library(bskyr)
 
 # Shared helpers from helpers.R: normalize_doi(), extract_dois_from_post(),
-# collect_candidate_posts(), load_replied_log()/save_replied_log(), get_link(),
+# collect_candidate_posts(), load_log()/save_log(), get_link(),
 # format_reproduction_outcome(), format_replication_outcome() (the latter two,
 # plus get_short_citation()/get_link(), are also used by bot.R for its daily
 # broadcast, so both scripts share the same wording).
 source("helpers.R")
+
+SCAN_LOG_PATH <- "scan_log.csv"
+SCAN_LOG_COLS <- c("run_at", "dry_run", "candidates_scanned", "replication_matches", "retraction_matches", "replies_posted")
+
+# Helper function: Append one row summarizing this run to scan_log.csv, for
+# the stats page (how many posts were scanned, matched, and actually replied
+# to, per run).
+log_scan_stats <- function(dry_run, candidates_scanned, replication_matches, retraction_matches, replies_posted) {
+  scan_log <- load_log(SCAN_LOG_PATH, cols = SCAN_LOG_COLS)
+  new_row <- data.frame(
+    run_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
+    dry_run = if (dry_run) "true" else "false",
+    candidates_scanned = candidates_scanned,
+    replication_matches = replication_matches,
+    retraction_matches = retraction_matches,
+    replies_posted = replies_posted,
+    stringsAsFactors = FALSE
+  )
+  save_log(do.call(rbind, list(scan_log, new_row)), SCAN_LOG_PATH)
+}
 
 RETRACTION_WATCH_CSV_URL <- "https://gitlab.com/crossref/retraction-watch-data/-/raw/main/retraction_watch.csv?ref_type=heads"
 
@@ -108,7 +128,7 @@ main <- function() {
   # replication and retraction replies, distinguished by kind/notice_type)
   # ---------------------------------------------------------
   log_path <- "replied_posts.csv"
-  replied_log <- load_replied_log(log_path)
+  replied_log <- load_log(log_path)
   already_replied_uris <- replied_log$post_uri
 
   # ---------------------------------------------------------
@@ -140,6 +160,7 @@ main <- function() {
   if (length(candidates) == 0) {
     cat("No candidate posts found in this run.\n")
     if (dry_run) write_dry_run_preview(list())
+    log_scan_stats(dry_run, 0, 0, 0, 0)
     return(invisible(NULL))
   }
 
@@ -150,6 +171,8 @@ main <- function() {
   # ---------------------------------------------------------
   new_log_rows <- list()
   dry_run_matches <- list()
+  replication_match_count <- 0
+  retraction_match_count <- 0
 
   for (post in candidates) {
     post_uri <- post$uri
@@ -226,6 +249,9 @@ main <- function() {
       next
     }
 
+    if (kind == "replication") replication_match_count <- replication_match_count + 1
+    if (kind == "retraction") retraction_match_count <- retraction_match_count + 1
+
     cat("Match found - post:", post_uri, "- kind:", kind, "- DOI:", doi, "\n")
 
     if (dry_run) {
@@ -278,13 +304,15 @@ main <- function() {
 
   if (length(new_log_rows) > 0 && !dry_run) {
     updated_log <- do.call(rbind, c(list(replied_log), new_log_rows))
-    save_replied_log(updated_log, log_path)
+    save_log(updated_log, log_path)
     cat("Logged", length(new_log_rows), "new repl(y/ies) to", log_path, "\n")
   } else {
     cat("No new replies logged in this run.\n")
   }
 
   if (dry_run) write_dry_run_preview(dry_run_matches)
+
+  log_scan_stats(dry_run, length(candidates), replication_match_count, retraction_match_count, length(new_log_rows))
 }
 
 main()
